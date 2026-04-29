@@ -1,0 +1,522 @@
+{
+  "name": "RAG — Slack Channel Ingestion",
+  "description": "Slack Events listener for #rag-docs: extracts URL from messages, calls RAG ingest webhook, replies in-thread, and DMs YOUR_SLACK_USERNAME on errors. Uses native Slack nodes.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rag/slack-events",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b20779cf-a42c-42ea-b148-cfe5b65c64a0",
+      "name": "Slack Events Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        192
+      ],
+      "webhookId": "f4d29bd3-4f6e-493e-b748-aef8eac8a527"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.type }}",
+              "rightValue": "url_verification",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fa3cd163-ee9d-44f8-8600-2dc73128c03f",
+      "name": "Is URL Verification?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -240,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ challenge: $('Slack Events Webhook').first().json.body.challenge }) }}",
+        "options": {}
+      },
+      "id": "0d943e6a-b109-4d9c-bd2d-b793666b2b4d",
+      "name": "Respond Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "8a889eaf-b053-4bd4-abf5-5f6b0030c173",
+      "name": "Respond 200 ACK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "449961e0-f7d0-4c1d-b146-453ef53b4aab",
+              "leftValue": "={{ !$json.body.event.bot_id && $json.body.event.subtype === undefined && $json.body.event.type === 'message' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "82ddab15-21ec-4203-bf35-bf4bd8d89c88",
+      "name": "Skip Bots",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const event = $json.body.event || {};\nconst rawText = event.text || '';\n\nconst cleanText = rawText\n  .replace(/<([^|>]+)\\|[^>]*>/g, '$1')\n  .replace(/<([^>]+)>/g, '$1');\n\nconst urlMatch = cleanText.match(/https?:\\/\\/[^\\s]+/);\nlet url = urlMatch ? urlMatch[0].replace(/[.,;!?]$/, '') : null;\n\nlet sourceName = 'Document';\nif (url) {\n  const gdocMatch = url.match(/https:\\/\\/docs\\.google\\.com\\/document\\/d\\/([a-zA-Z0-9_-]+)/);\n  const gsheetMatch = url.match(/https:\\/\\/docs\\.google\\.com\\/spreadsheets\\/d\\/([a-zA-Z0-9_-]+)/);\n  const gdriveMatch = url.match(/https:\\/\\/drive\\.google\\.com\\/file\\/d\\/([a-zA-Z0-9_-]+)/);\n\n  if (gdocMatch) {\n    const docId = gdocMatch[1];\n    url = `https://docs.google.com/document/d/${docId}/export?format=pdf`;\n    sourceName = `GDoc-${docId.slice(0, 8)}`;\n  } else if (gsheetMatch) {\n    const sheetId = gsheetMatch[1];\n    url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=pdf`;\n    sourceName = `GSheet-${sheetId.slice(0, 8)}`;\n  } else if (gdriveMatch) {\n    const fileId = gdriveMatch[1];\n    url = `https://drive.google.com/uc?export=download&id=${fileId}`;\n    sourceName = `GDrive-${fileId.slice(0, 8)}`;\n  } else {\n    const parts = url.split('/');\n    const last = decodeURIComponent(parts[parts.length - 1].split('?')[0]);\n    if (last && last.length > 3 && !['edit','view','preview'].includes(last.toLowerCase())) {\n      sourceName = last;\n    }\n  }\n}\n\nreturn [{ json: {\n  channel: event.channel,\n  event_ts: event.ts,\n  user: event.user,\n  url,\n  has_url: !!url,\n  has_file: (event.files || []).length > 0,\n  source_name: sourceName,\n  source_url: url || ''\n}}];"
+      },
+      "id": "2fcb1a43-56c4-46fd-bccc-e67969366f00",
+      "name": "Extract URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_url }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7940a4f1-a27b-4c16-8dd3-958c54cfeb34",
+      "name": "Has URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.channel }}"
+        },
+        "text": "⏳ Got it! Ingesting your document now...",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "thread_ts": {
+            "replyValues": {
+              "thread_ts": "={{ $json.event_ts }}"
+            }
+          }
+        }
+      },
+      "id": "72c4ec0a-2b59-46fc-a3ed-da1701f74bee",
+      "name": "Post Processing Msg",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        960,
+        160
+      ],
+      "webhookId": "296dbac2-af91-4c39-87fa-db215c211dba"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-n8n-host.example.com/webhook/rag/ingest",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ file_url: $('Extract URL').item.json.url, source_name: $('Extract URL').item.json.source_name, source_url: $('Extract URL').item.json.source_url, file_type: 'pdf' }) }}",
+        "options": {}
+      },
+      "id": "b35a9f72-52c0-4c69-becf-4d6ee7c3aa18",
+      "name": "Call Ingest Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1184,
+        160
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1ce7298c-f961-4f4b-a679-b00e14efdd74",
+      "name": "Ingest OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Extract URL').item.json.channel }}"
+        },
+        "text": "={{ '✅ Done! Ingested *' + $('Extract URL').item.json.source_name + '* into the knowledge base (' + $json.chunks_ingested + ' chunks). Try `/ask` in Slack!' }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "thread_ts": {
+            "replyValues": {
+              "thread_ts": "={{ $('Extract URL').item.json.event_ts }}"
+            }
+          }
+        }
+      },
+      "id": "4dfc1154-30db-4377-8959-cea7eadb03d3",
+      "name": "Post Success",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        1680,
+        80
+      ],
+      "webhookId": "96737217-e9d4-423c-9430-aba3dbed4430"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Extract URL').item.json.channel }}"
+        },
+        "text": "={{ '❌ Ingestion failed: ' + ($json.message || $json.error || 'unknown error') }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "thread_ts": {
+            "replyValues": {
+              "thread_ts": "={{ $('Extract URL').item.json.event_ts }}"
+            }
+          }
+        }
+      },
+      "id": "19dcf69a-b949-4619-8d7c-826d95f0bb26",
+      "name": "Post Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        1680,
+        288
+      ],
+      "webhookId": "d72c6080-15b1-4950-a374-388dd8044544"
+    },
+    {
+      "parameters": {
+        "select": "user",
+        "user": {
+          "__rl": true,
+          "mode": "username",
+          "value": "YOUR_SLACK_USERNAME"
+        },
+        "text": "={{ '🚨 RAG ingest failed for *' + $('Extract URL').item.json.source_name + '*\\nURL: ' + $('Extract URL').item.json.source_url + '\\nChannel: <#' + $('Extract URL').item.json.channel + '>\\nError: ' + ($json.message || $json.error || 'unknown error') }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": true
+        }
+      },
+      "id": "52f1b938-8e36-40fb-be8f-74daeb9b3110",
+      "name": "DM YOUR_SLACK_USERNAME on Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        1920,
+        288
+      ],
+      "webhookId": "8cda99e5-0489-40bf-9d74-ae97b9167cea"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.channel }}"
+        },
+        "text": "={{ $json.has_file ? '📎 Direct file uploads aren\\'t supported yet. Please share a Google Drive link instead.' : '❓ I didn\\'t find a URL in your message. Please paste a direct download link to a PDF or Google Doc.' }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "thread_ts": {
+            "replyValues": {
+              "thread_ts": "={{ $json.event_ts }}"
+            }
+          }
+        }
+      },
+      "id": "075a519a-468b-4820-8276-751c8d9a099b",
+      "name": "No URL Reply",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        960,
+        528
+      ],
+      "webhookId": "6de62636-f4b1-4f50-94f1-7b2b9877ef37"
+    },
+    {
+      "parameters": {
+        "select": "user",
+        "user": {
+          "__rl": true,
+          "value": "YOUR_SLACK_USERNAME",
+          "mode": "username"
+        },
+        "text": "Tes",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        1504,
+        480
+      ],
+      "id": "cb9ac7f0-3567-4eb4-bc4e-8d0079febdcb",
+      "name": "dm about rag ingest error",
+      "webhookId": "db1562cc-bf51-4b2f-aac9-e884dcc16e56"
+    }
+  ],
+  "connections": {
+    "Slack Events Webhook": {
+      "main": [
+        [
+          {
+            "node": "Is URL Verification?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is URL Verification?": {
+      "main": [
+        [
+          {
+            "node": "Respond Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 200 ACK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200 ACK": {
+      "main": [
+        [
+          {
+            "node": "Skip Bots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Bots": {
+      "main": [
+        [
+          {
+            "node": "Extract URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract URL": {
+      "main": [
+        [
+          {
+            "node": "Has URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has URL?": {
+      "main": [
+        [
+          {
+            "node": "Post Processing Msg",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No URL Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Processing Msg": {
+      "main": [
+        [
+          {
+            "node": "Call Ingest Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Ingest Webhook": {
+      "main": [
+        [
+          {
+            "node": "Ingest OK?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "dm about rag ingest error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest OK?": {
+      "main": [
+        [
+          {
+            "node": "Post Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Error": {
+      "main": [
+        [
+          {
+            "node": "DM YOUR_SLACK_USERNAME on Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "meta": {
+    "aiBuilderAssisted": true,
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

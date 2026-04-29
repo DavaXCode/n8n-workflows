@@ -1,0 +1,1665 @@
+{
+  "updatedAt": "2026-04-14T13:16:24.231Z",
+  "createdAt": "2026-04-13T11:22:20.983Z",
+  "name": "BTMS Ops — Scan & Watch",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "london-open-cron",
+      "name": "London Open Cron",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 8-16 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "every-15m-cron",
+      "name": "Every 15M Cron",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "btms-scan",
+        "options": {}
+      },
+      "id": "scan-webhook",
+      "name": "Scan Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -208
+      ],
+      "webhookId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "mode",
+              "value": "SCAN",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "symbol",
+              "value": "BTCUSDT",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "scanTime",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-scan-mode",
+      "name": "Set Scan Mode",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        272,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1",
+              "name": "mode",
+              "value": "WATCH",
+              "type": "string"
+            },
+            {
+              "id": "b2",
+              "name": "symbol",
+              "value": "BTCUSDT",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-watch-mode",
+      "name": "Set Watch Mode",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        272,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.bybit.com/v5/market/kline",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "category",
+              "value": "linear"
+            },
+            {
+              "name": "symbol",
+              "value": "BTCUSDT"
+            },
+            {
+              "name": "interval",
+              "value": "D"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-1d",
+      "name": "Fetch 1D Candles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.bybit.com/v5/market/kline",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "category",
+              "value": "linear"
+            },
+            {
+              "name": "symbol",
+              "value": "BTCUSDT"
+            },
+            {
+              "name": "interval",
+              "value": "240"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-4h",
+      "name": "Fetch 4H Candles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.bybit.com/v5/market/kline",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "category",
+              "value": "linear"
+            },
+            {
+              "name": "symbol",
+              "value": "BTCUSDT"
+            },
+            {
+              "name": "interval",
+              "value": "60"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-1h",
+      "name": "Fetch 1H Candles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.bybit.com/v5/market/kline",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "category",
+              "value": "linear"
+            },
+            {
+              "name": "symbol",
+              "value": "BTCUSDT"
+            },
+            {
+              "name": "interval",
+              "value": "15"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-15m",
+      "name": "Fetch 15M Candles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.bybit.com/v5/market/kline",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "category",
+              "value": "linear"
+            },
+            {
+              "name": "symbol",
+              "value": "BTCUSDT"
+            },
+            {
+              "name": "interval",
+              "value": "5"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-5m",
+      "name": "Fetch 5M Candles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-strategy-endpoint.example.com/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"prompt\":\"STRATEGY_PROMPT_REDACTED\"}",
+        "options": {}
+      },
+      "id": "ew-direction-agent",
+      "name": "EW Direction Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        912,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "parse-ew-response",
+      "name": "Parse EW Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.direction }}",
+              "rightValue": "NO_TRADE",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "cond2",
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": 0.5,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-direction-valid",
+      "name": "IF Direction Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.BTMS_TELEGRAM_CHAT_ID }}",
+        "text": "=📊 <b>BTMS SCAN</b> — {{ $now.toFormat('yyyy-MM-dd HH:mm') }} UTC\n\n⚠️ No valid Elliott Wave setup found.\nDirection: {{ $json.direction }} | Confidence: {{ Math.round(($json.ew_confidence || 0) * 100) }}%\n\nSkipping setup generation for this session.",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-no-trade-alert",
+      "name": "Send No Trade Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1584,
+        -144
+      ],
+      "webhookId": "6e899c26-9da7-4e77-8ee8-094fb1544245",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "fvg-zone-finder",
+      "name": "FVG Zone Finder",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "sniper-entry-checker",
+      "name": "Sniper Entry Checker",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-strategy-endpoint.example.com/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ `You are the BTMS Setup Generator. Analyse this BTC/USDT scan and produce up to 3 precise trade setups. Only include setups with confidence >= 0.60.\n\nSCAN DATA\nDirection : ${ ($json.direction ?? 'UNKNOWN').toUpperCase() }\nEW Wave   : ${ $json.ew_data?.wave ?? 'N/A' } (${ Math.round(($json.ew_data?.confidence ?? 0) * 100) }% confidence)\nReasoning : ${ $json.ew_data?.reasoning ?? 'N/A' }\nPrice     : $${ $json.current_price ?? 'N/A' }\nFVG Zones : ${ ($json.fvg_zones?.length ?? 0) > 0 ? JSON.stringify($json.fvg_zones) : 'none detected — use nearest support/resistance' }\n\nReturn ONLY a valid JSON array (no markdown, no explanation) of 1–3 setups. Each element must have exactly:\n{ \"symbol\": \"BTCUSDT\", \"direction\": \"LONG\" or \"SHORT\", \"entry_low\": number, \"entry_high\": number, \"invalid_price\": number, \"valid_price\": number, \"stop_loss\": number, \"take_profit_1\": number, \"take_profit_2\": number, \"risk_reward\": number, \"confidence\": number 0-1, \"setup_type\": string, \"entry_trigger\": string, \"reasoning\": string }\n\nField definitions:\n- entry_low / entry_high: the actual FVG or entry zone bounds (NOT a single midpoint — use the real zone range from the FVG data)\n- invalid_price: structural price level that fully invalidates this setup (for SHORT: price above this level cancels it; for LONG: price below this level cancels it)\n- valid_price: price level that confirms the trade is still executable — entry trigger or pullback confirmation level (e.g. FVG midpoint, rejection candle close, or key structural level)\n- stop_loss: hard SL placed with buffer beyond invalid_price` }}"
+            }
+          ]
+        },
+        "options": {},
+        "jsonBody": "{\"prompt\":\"STRATEGY_PROMPT_REDACTED\"}"
+      },
+      "id": "setup-generator",
+      "name": "Setup Generator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2064,
+        -464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "parse-setups",
+      "name": "Parse Setups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2304,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ parent: { database_id: '' + $env.NOTION_SETUPS_DB_ID + '' }, properties: { Name: { title: [{ text: { content: 'BTCUSDT ' + $json.direction + ' — ' + ($json.fvg_description || 'Setup').substring(0, 50) } }] }, Direction: { select: { name: $json.direction } }, 'Entry Low': { number: $json.entry_low }, 'Entry High': { number: $json.entry_high }, 'Stop Loss': { number: $json.stop_loss }, 'Take Profit 1': { number: $json.tp1 }, 'Take Profit 2': { number: $json.tp2 }, 'Entry TF': { select: { name: $json.entry_tf || '15M' } }, 'FVG Description': { rich_text: [{ text: { content: ($json.fvg_description || '').substring(0, 2000) } }] }, 'Elliott Wave Context': { rich_text: [{ text: { content: ($json.ew_context || '').substring(0, 2000) } }] }, Confidence: { number: $json.confidence }, Status: { select: { name: 'Pending' } }, 'Scan Time': { date: { start: new Date().toISOString() } } } }) }}",
+        "options": {}
+      },
+      "id": "create-notion-page",
+      "name": "Create Notion Setup Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2896,
+        -416
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Notion"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-setups",
+      "name": "Aggregate Setups",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2544,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const aggregated = $input.item.json;\nconst allSetups = Array.isArray(aggregated) ? aggregated : (aggregated.data || []);\nconst realSetups = allSetups.filter(s => !s._no_setups);\nconst now = new Date().toISOString().slice(0, 16).replace('T', ' ');\nconst count = realSetups.length;\n\nif (count === 0) {\n  const noSetupMsg = allSetups[0]?.message || 'No setups generated (confidence threshold not met or no FVG zones found).';\n  return [{ json: { message: '📊 <b>BTMS SCAN</b> — ' + now + ' UTC\\n\\n⚠️ ' + noSetupMsg + '\\n\\nMarket conditions may not be suitable for intraday trading today.' } }];\n}\n\nconst firstSetup = realSetups[0] || {};\nconst dirEmoji = firstSetup.direction === 'LONG' ? '📈' : '📉';\n\nlet msg = '📊 <b>BTMS SCAN COMPLETE — BTCUSDT</b>\\n';\nmsg += '🕐 ' + now + ' UTC\\n\\n';\nmsg += dirEmoji + ' <b>DIRECTION: ' + (firstSetup.direction || 'N/A') + '</b>\\n';\nmsg += '<i>' + (firstSetup.ew_context || '') + '</i>\\n\\n';\n\nrealSetups.forEach((s, i) => {\n  const confPct = Math.round((s.confidence || 0) * 100);\n  msg += '───── SETUP ' + (i + 1) + ' ─────\\n';\n  msg += 'Zone: $' + (s.entry_low || 0).toLocaleString() + ' – $' + (s.entry_high || 0).toLocaleString() + '\\n';\n  msg += '✅ Valid: ' + (s.valid_price || 0).toLocaleString() + ' | ❌ Invalid: ' + (s.invalid_price || 0).toLocaleString() + '\\n';\n  msg += 'SL: ' + (s.stop_loss || 0).toLocaleString() + ' | TP1: ' + (s.tp1 || 0).toLocaleString() + ' | TP2: ' + (s.tp2 || 0).toLocaleString() + '\\n';\n  msg += 'TF: ' + (s.entry_tf || '15M') + ' | Confidence: ' + confPct + '%\\n';\n  msg += 'FVG: ' + (s.fvg_description || '') + '\\n';\n  const confirmPrice = s.valid_price || (s.direction === 'LONG' ? s.entry_high : s.entry_low) || 0;\n  const triggerDir = s.direction === 'LONG' ? 'Bullish' : 'Bearish';\n  const triggerAction = s.direction === 'LONG' ? 'above' : 'below';\n  msg += '🎯 Trigger: ' + triggerDir + ' ' + (s.entry_tf || '15M') + ' close ' + triggerAction + ' $' + confirmPrice.toLocaleString() + '\\n\\n';\n});\n\nmsg += '✅ ' + count + ' setup' + (count !== 1 ? 's' : '') + ' saved to Notion';\n\nreturn [{ json: { message: msg } }];"
+      },
+      "id": "format-scan-telegram",
+      "name": "Format Scan Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2800,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.BTMS_TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-scan-telegram",
+      "name": "Send Scan Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3024,
+        -144
+      ],
+      "webhookId": "4304c48c-5877-4c2f-a4ab-e0e342486e1d",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.bybit.com/v5/market/tickers",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "category",
+              "value": "linear"
+            },
+            {
+              "name": "symbol",
+              "value": "BTCUSDT"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-live-price",
+      "name": "Fetch Live Price",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Purpose: Extract current BTCUSDT price from Bybit v5 market/tickers response\n// Input: Bybit API response with retCode, result.list array\n// Output: { currentPrice: number, symbol: string, priceTimestamp: ISO8601 }\n\nconst body = $input.item.json;\n\n// Bybit returns HTTP 200 even for API-level errors — check retCode explicitly\nif (body.retCode !== 0) {\n  throw new Error(\n    `Bybit API error: retCode=${body.retCode}, msg=${body.retMsg}. ` +\n    `Check category/symbol query params on the Fetch Live Price node.`\n  );\n}\n\nconst list = body.result && body.result.list;\nif (!Array.isArray(list) || list.length === 0) {\n  throw new Error(\n    `Bybit returned empty ticker list. result=${JSON.stringify(body.result)}`\n  );\n}\n\nconst ticker = list[0];\nif (ticker.lastPrice === undefined || ticker.lastPrice === null) {\n  throw new Error(\n    `ticker.lastPrice missing from Bybit response. Got ticker keys: ${Object.keys(ticker).join(', ')}`\n  );\n}\n\nconst currentPrice = parseFloat(ticker.lastPrice);\nif (isNaN(currentPrice)) {\n  throw new Error(`lastPrice '${ticker.lastPrice}' parsed as NaN — unexpected value from Bybit`);\n}\n\nreturn [{ json: { currentPrice, symbol: ticker.symbol || 'BTCUSDT', priceTimestamp: new Date().toISOString() } }];\n"
+      },
+      "id": "extract-price",
+      "name": "Extract Price",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/' + $env.NOTION_SETUPS_DB_ID + '/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\": {\"property\": \"Status\", \"select\": {\"equals\": \"Pending\"}}}",
+        "options": {}
+      },
+      "id": "query-notion-setups",
+      "name": "Query Notion Pending Setups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        400
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Notion"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "range-check",
+              "leftValue": "={{ $json.results.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-setups-in-range",
+      "name": "IF Setups In Range",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1280,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.item.json.results || [];\nconst currentPrice = $('Extract Price').item.json.currentPrice;\n\nif (results.length === 0) {\n  return [];\n}\n\nreturn results.map(page => {\n  const props = page.properties;\n  return { json: {\n    notion_page_id: page.id,\n    direction: props.Direction?.select?.name || 'LONG',\n    entry_low: props['Entry Low']?.number || 0,\n    entry_high: props['Entry High']?.number || 0,\n    invalid_price: props['Invalid Price']?.number || 0,\n    valid_price: props['Valid Price']?.number || 0,\n    stop_loss: props['Stop Loss']?.number || 0,\n    tp1: props['Take Profit 1']?.number || 0,\n    tp2: props['Take Profit 2']?.number || 0,\n    entry_tf: props['Entry TF']?.select?.name || '15M',\n    fvg_description: props['FVG Description']?.rich_text?.[0]?.text?.content || '',\n    ew_context: props['Elliott Wave Context']?.rich_text?.[0]?.text?.content || '',\n    confidence: props.Confidence?.number || 0,\n    paper_trade_id: props['Paper Trade ID']?.number || null,\n    setup_name: props.Name?.title?.[0]?.text?.content || 'Unknown Setup',\n    currentPrice\n  }};\n});"
+      },
+      "id": "split-matched-setups",
+      "name": "Split Matched Setups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-strategy-endpoint.example.com/analyze",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ `You are the BTMS Validation Agent. Assess whether this pending BTC/USDT trade setup is still valid given the current market price.\n\nSETUP DETAILS:\nDirection    : ${ $json.direction }\nEntry Zone   : $${ ($json.entry_low || 0).toLocaleString() } – $${ ($json.entry_high || 0).toLocaleString() }\nStop Loss    : $${ ($json.stop_loss || 0).toLocaleString() }\nTake Profit 1: $${ ($json.tp1 || 0).toLocaleString() }\nTake Profit 2: $${ ($json.tp2 || 0).toLocaleString() }\nEntry TF     : ${ $json.entry_tf || '15M' }\nSetup        : ${ $json.fvg_description || 'FVG zone pullback' }\nEW Context   : ${ $json.ew_context || 'N/A' }\nOriginal Conf: ${ Math.round(($json.confidence || 0) * 100) }%\n\nCURRENT PRICE: $${ $json.currentPrice }\n\nAssess: (1) Is price within 0.5% of entry zone? (2) Has stop loss been breached? (3) Does EW context still support the direction?\n\nReturn ONLY valid JSON (no markdown):\n{\"valid\": true/false, \"confidence\": 0.0-1.0, \"reason\": \"one sentence\", \"adjusted_sl\": number, \"adjusted_tp1\": number}` }}"
+            }
+          ]
+        },
+        "options": {},
+        "jsonBody": "{\"prompt\":\"STRATEGY_PROMPT_REDACTED\"}"
+      },
+      "id": "validation-agent",
+      "name": "Validation Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "parse-validation",
+      "name": "Parse Validation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "valid-check",
+              "leftValue": "={{ $json.validation.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "confidence-check",
+              "leftValue": "={{ $json.validation.confidence }}",
+              "rightValue": 0.55,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-valid-setup",
+      "name": "IF Valid Setup",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2240,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{ $json.notion_page_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { Status: { select: { name: 'Active' } } } }) }}",
+        "options": {}
+      },
+      "id": "notion-set-active",
+      "name": "Notion Set Active",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        288
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Notion"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.BTMS_TELEGRAM_CHAT_ID }}",
+        "text": "=🟡 <b>SETUP ACTIVE — WATCHING</b> — BTCUSDT {{ $('Parse Validation').item.json.direction }}\n\n📍 Zone: ${{ $('Parse Validation').item.json.entry_low }} – ${{ $('Parse Validation').item.json.entry_high }}\n🛑 SL: ${{ $('Parse Validation').item.json.validation.adjusted_sl || $('Parse Validation').item.json.stop_loss }}\n🎯 TP1: ${{ $('Parse Validation').item.json.validation.adjusted_tp1 || $('Parse Validation').item.json.tp1 }} | TP2: ${{ $('Parse Validation').item.json.tp2 }}\n\n⚡ Confidence: {{ Math.round($('Parse Validation').item.json.validation.confidence * 100) }}% (below 72% — not traded)\n💡 Reason: {{ $('Parse Validation').item.json.validation.reason }}\n📝 FVG: {{ $('Parse Validation').item.json.fvg_description }}\n\n👁 Watching for entry confirmation. No trade placed yet.",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-activation-telegram",
+      "name": "Send Activation Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2992,
+        480
+      ],
+      "webhookId": "8a3cef14-0b87-4dfb-a5d5-2accee428d78",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{ $json.notion_page_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { Status: { select: { name: 'Invalid' } } } }) }}",
+        "options": {}
+      },
+      "id": "notion-set-invalid",
+      "name": "Notion Set Invalid",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        528
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Notion"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE paper_trades SET status = 'closed', close_price = {{ $('Parse Validation').item.json.currentPrice }}, close_time = NOW(), notes = CONCAT(COALESCE(notes, ''), ' | Invalidated by BTMS Ops: {{ $('Parse Validation').item.json.validation.reason.replace(/'/g, '') }}') WHERE id = {{ $('Parse Validation').item.json.paper_trade_id }} AND status = 'open'",
+        "options": {}
+      },
+      "id": "close-paper-trade",
+      "name": "Close Paper Trade",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2720,
+        528
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS PostgreSQL"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.BTMS_TELEGRAM_CHAT_ID }}",
+        "text": "=🔴 <b>SETUP INVALIDATED</b> — {{ $('Parse Validation').item.json.setup_name || ('BTCUSDT ' + $('Parse Validation').item.json.direction) }}\n\n❌ Reason: {{ $('Parse Validation').item.json.validation.reason }}\n\n📍 Current Price: ${{ $('Parse Validation').item.json.currentPrice }}\n📊 Entry Zone: ${{ $('Parse Validation').item.json.entry_low }} – ${{ $('Parse Validation').item.json.entry_high }}\n🛑 SL: ${{ $('Parse Validation').item.json.stop_loss }} | ⚠️ Breach level: ${{ $('Parse Validation').item.json.invalid_price || $('Parse Validation').item.json.stop_loss }}\n🎯 TP1: ${{ $('Parse Validation').item.json.tp1 }} | TP2: ${{ $('Parse Validation').item.json.tp2 }}\n➡️ Direction: {{ $('Parse Validation').item.json.direction }} | Was {{ Math.round($('Parse Validation').item.json.confidence * 100) }}% confidence\n\n{{ $('Parse Validation').item.json.paper_trade_id ? '💼 Paper trade closed in DB.' : '⚠️ No open paper trade to close.' }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-invalidation-telegram",
+      "name": "Send Invalidation Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2960,
+        752
+      ],
+      "webhookId": "5f4f1594-a587-418a-ac11-7271d6a93864",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "format-ew-prompt",
+      "name": "Format EW Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -304
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "merge-candles-ew",
+      "name": "Merge Candles & EW",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1584,
+        -496
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.bybit.com/v5/market/kline",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "category",
+              "value": "linear"
+            },
+            {
+              "name": "symbol",
+              "value": "={{ $('Set Scan Mode').first().json.symbol }}"
+            },
+            {
+              "name": "interval",
+              "value": "60"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-1h-candles-fvg",
+      "name": "Get 1H Candles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1584,
+        -304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.bybit.com/v5/market/kline",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "category",
+              "value": "linear"
+            },
+            {
+              "name": "symbol",
+              "value": "={{ $('Set Scan Mode').first().json.symbol }}"
+            },
+            {
+              "name": "interval",
+              "value": "15"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-15m-candles-fvg",
+      "name": "Get 15M Candles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1840,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.bybit.com/v5/market/kline",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "category",
+              "value": "linear"
+            },
+            {
+              "name": "symbol",
+              "value": "={{ $('Set Scan Mode').first().json.symbol }}"
+            },
+            {
+              "name": "interval",
+              "value": "5"
+            },
+            {
+              "name": "limit",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-5m-candles-fvg",
+      "name": "Get 5M Candles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1824,
+        -464
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-no-setups",
+              "leftValue": "={{ $json._no_setups }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b3cdf242-bfab-4852-a658-f2275e759892",
+      "name": "Has Valid Setups",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2432,
+        -448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "map-setup-data",
+      "name": "Map Setup Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3056,
+        -416
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "confidence-72",
+              "leftValue": "={{ $json.validation.confidence }}",
+              "rightValue": 0.72,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          }
+        },
+        "options": {}
+      },
+      "id": "if-confidence-72",
+      "name": "IF Confidence >= 72%",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2720,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst now = new Date();\nconst pad = n => String(n).padStart(2,'0');\n\nconst direction = d.direction || 'UNKNOWN';\nconst entry = d.currentPrice;\nconst stopLoss = d.validation?.adjusted_sl || d.stop_loss;\nconst tp1 = d.validation?.adjusted_tp1 || d.tp1;\nconst confidence = d.validation?.confidence || 0;\nconst symbol = d.symbol || 'BTCUSDT';\n\nconst tradeName = `${symbol}-SCAN-${now.getUTCFullYear()}${pad(now.getUTCMonth()+1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}`;\nconst stopLossPct = Math.abs((stopLoss - entry) / entry) * 100;\n\nconst body = {\n  parent: { database_id: '' + $env.NOTION_TRADES_DB_ID + '' },\n  properties: {\n    'Trade Name': { title: [{ text: { content: tradeName } }] },\n    'Symbol': { rich_text: [{ text: { content: symbol } }] },\n    'Side': { select: { name: direction === 'LONG' ? 'LONG' : 'SHORT' } },\n    'Status': { select: { name: 'OPEN' } },\n    'Entry': { number: entry },\n    'Stop Loss': { number: stopLoss },\n    'Take Profit': { number: tp1 },\n    'Risk Pct': { number: 3 },\n    'Stop Loss Pct': { number: stopLossPct },\n    'Confidence': { number: confidence },\n    'Open Time': { date: { start: now.toISOString() } },\n    'Notes': { rich_text: [{ text: { content: 'source=scan_watch|fvg=' + (d.fvg_description || '') } }] }\n  }\n};\n\nconst res = await fetch('https://api.notion.com/v1/pages', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer ' + $env.NOTION_TOKEN + '',\n    'Notion-Version': '2022-06-28',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify(body)\n});\n\nconst page = await res.json();\nreturn [{ json: { ...d, notion_trade_page_id: page.id, trade_name: tradeName } }];"
+      },
+      "id": "log-scan-paper-trade",
+      "name": "Log Scan Paper Trade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2960,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "execute-scan-trade",
+      "name": "Execute Scan Trade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.BTMS_TELEGRAM_CHAT_ID }}",
+        "text": "=🚀 <b>TRADE EXECUTED</b> — {{ $json.symbol || 'BTCUSDT' }} {{ $json.direction }}\n\n📍 Entry: ${{ $json.currentPrice }}\n🛑 SL: ${{ $json.validation.adjusted_sl || $json.stop_loss }}\n🎯 TP1: ${{ $json.validation.adjusted_tp1 || $json.tp1 }} | TP2: ${{ $json.tp2 }}\n\n⚡ Confidence: {{ Math.round($json.validation.confidence * 100) }}% ✅\n📝 FVG: {{ $json.fvg_description }}\n💡 Reason: {{ $json.validation.reason }}\n\n💼 Trade: {{ $json.trade_name }}\n⚙️ Order: {{ $json.entryOrderId || 'N/A' }} | Status: {{ $json.orderStatus }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "send-trade-alert-telegram",
+      "name": "Send Trade Alert Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3440,
+        144
+      ],
+      "webhookId": "6f49f2dd-99bf-4e13-8aee-041215560894",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "London Open Cron": {
+      "main": [
+        [
+          {
+            "node": "Set Scan Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set Scan Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 15M Cron": {
+      "main": [
+        [
+          {
+            "node": "Set Watch Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Scan Mode": {
+      "main": [
+        [
+          {
+            "node": "Fetch 1D Candles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch 4H Candles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch 1H Candles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch 15M Candles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch 5M Candles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EW Direction Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse EW Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse EW Response": {
+      "main": [
+        [
+          {
+            "node": "IF Direction Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Direction Valid": {
+      "main": [
+        [
+          {
+            "node": "Merge Candles & EW",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get 1H Candles",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send No Trade Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FVG Zone Finder": {
+      "main": [
+        [
+          {
+            "node": "Sniper Entry Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sniper Entry Checker": {
+      "main": [
+        [
+          {
+            "node": "Setup Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Generator": {
+      "main": [
+        [
+          {
+            "node": "Parse Setups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Notion Setup Page": {
+      "main": [
+        [
+          {
+            "node": "Map Setup Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Setups": {
+      "main": [
+        [
+          {
+            "node": "Format Scan Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Scan Telegram": {
+      "main": [
+        [
+          {
+            "node": "Send Scan Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Watch Mode": {
+      "main": [
+        [
+          {
+            "node": "Fetch Live Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Live Price": {
+      "main": [
+        [
+          {
+            "node": "Extract Price",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Price": {
+      "main": [
+        [
+          {
+            "node": "Query Notion Pending Setups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Notion Pending Setups": {
+      "main": [
+        [
+          {
+            "node": "IF Setups In Range",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Setups In Range": {
+      "main": [
+        [
+          {
+            "node": "Split Matched Setups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Matched Setups": {
+      "main": [
+        [
+          {
+            "node": "Validation Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Validation": {
+      "main": [
+        [
+          {
+            "node": "IF Valid Setup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Valid Setup": {
+      "main": [
+        [
+          {
+            "node": "Notion Set Active",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion Set Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion Set Invalid": {
+      "main": [
+        [
+          {
+            "node": "Close Paper Trade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close Paper Trade": {
+      "main": [
+        [
+          {
+            "node": "Send Invalidation Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch 1D Candles": {
+      "main": [
+        [
+          {
+            "node": "Format EW Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format EW Prompt": {
+      "main": [
+        [
+          {
+            "node": "EW Direction Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch 1H Candles": {
+      "main": [
+        [
+          {
+            "node": "Merge Candles & EW",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch 15M Candles": {
+      "main": [
+        [
+          {
+            "node": "Merge Candles & EW",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get 1H Candles": {
+      "main": [
+        [
+          {
+            "node": "Get 15M Candles",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get 5M Candles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get 15M Candles": {
+      "main": [
+        [
+          {
+            "node": "FVG Zone Finder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Setups": {
+      "main": [
+        [
+          {
+            "node": "Has Valid Setups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Valid Setups": {
+      "main": [
+        [
+          {
+            "node": "Create Notion Setup Page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggregate Setups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Setup Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Setups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion Set Active": {
+      "main": [
+        [
+          {
+            "node": "IF Confidence >= 72%",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Confidence >= 72%": {
+      "main": [
+        [
+          {
+            "node": "Log Scan Paper Trade",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Activation Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Scan Paper Trade": {
+      "main": [
+        [
+          {
+            "node": "Execute Scan Trade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Scan Trade": {
+      "main": [
+        [
+          {
+            "node": "Send Trade Alert Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "binaryMode": "separate"
+  },
+  "tags": []
+}

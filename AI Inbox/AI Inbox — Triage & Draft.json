@@ -1,0 +1,776 @@
+{
+  "name": "AI Inbox — Triage & Draft",
+  "description": "Telegram AI support agent: Groq-powered chat agent with Postgres memory and three tools — search_knowledge_base (calls existing RAG webhook), create Notion support ticket, escalate to Slack channel.",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "-label:ai-triaged -label:ai-spam -from:me",
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "id": "d9f27bc5-e158-4e4d-92fe-c848ee233b1d",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -240,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\nfor (const item of $input.all()) {\n  const e = item.json;\n  const headers = e.headers || {};\n  const fromHeader = e.from?.text ?? e.from?.value?.[0]?.address ?? headers.from ?? '';\n  const fromName = e.from?.value?.[0]?.name ?? (fromHeader.split('<')[0] || '').trim();\n  const fromEmail = e.from?.value?.[0]?.address ?? (fromHeader.match(/<(.+?)>/)?.[1] ?? fromHeader).trim();\n  const subject = e.subject || headers.subject || '(no subject)';\n  const bodyText = (e.text || '').trim() || (e.snippet || '').trim();\n  const body = bodyText.length > 2000 ? bodyText.slice(0, 2000) + '\\n...[truncated]' : bodyText;\n  items.push({ json: {\n    messageId: e.id,\n    threadId: e.threadId,\n    rfc822MessageId: e.messageId || headers['message-id'] || '',\n    fromEmail,\n    fromName: fromName || fromEmail,\n    subject,\n    body,\n    receivedAt: new Date().toISOString()\n  }});\n}\nreturn items;"
+      },
+      "id": "ac7e8f49-1903-449f-b93b-b2ab73b1c476",
+      "name": "Extract Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Classify this incoming email and return a JSON verdict.\n\nFrom: {{ $json.fromName }} <{{ $json.fromEmail }}>\nSubject: {{ $json.subject }}\n\nBody:\n{{ $json.body }}\n\nGuidelines:\n- intent=meeting when the sender is asking to schedule a call, demo, meeting, or sync.\n- intent=lead when the sender expresses interest in services, pricing, hiring, or a project but is NOT yet asking to schedule.\n- intent=spam for newsletters, marketing blasts, cold outbound that is clearly automated, notifications, OTP codes, receipts.\n- urgency: low | normal | high (high only when the message explicitly requires a response within 24h).\n- summary: one sentence, max 140 chars, factual.\n- sender_name: best guess at first name only.",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an executive assistant triaging an inbox. You return strict JSON only — no prose, no markdown. Intents are exactly one of: meeting | lead | spam. Confidence is 0.0–1.0."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "15ea446e-0ffb-4e32-bb54-81069bfdcde3",
+      "name": "Groq Classifier",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        208,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 300,
+          "temperature": 0.1
+        }
+      },
+      "id": "cd0a0e09-8c0f-4ccf-9f20-32f094c06a93",
+      "name": "Groq — Classifier Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        176,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{ \"intent\": \"meeting\", \"confidence\": 0.92, \"summary\": \"Asking to schedule a 30-min intro call next week.\", \"urgency\": \"normal\", \"sender_name\": \"Jamie\" }"
+      },
+      "id": "572b11ab-e998-4af7-b92c-7eac6a55dfb0",
+      "name": "Triage JSON Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        384,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $('Extract Email').first().json;\nconst out = $input.first().json.output ?? {};\nconst allowed = ['meeting', 'lead', 'spam'];\nlet intent = String(out.intent || '').toLowerCase();\nif (!allowed.includes(intent)) intent = 'lead';\nconst confidence = Math.max(0, Math.min(1, Number(out.confidence) || 0.5));\nconst summary = String(out.summary || email.subject).slice(0, 140);\nconst urgency = ['low','normal','high'].includes(String(out.urgency)) ? out.urgency : 'normal';\nconst sender_name = String(out.sender_name || email.fromName.split(' ')[0] || 'there').slice(0, 40);\n\nconst branchIndex = intent === 'meeting' ? 0 : intent === 'lead' ? 1 : 2;\n\nreturn [{ json: { ...email, intent, confidence, summary, urgency, sender_name, _branch: branchIndex } }];"
+      },
+      "id": "1e6fefb6-c00a-4cab-a8b0-a290b7c079ee",
+      "name": "Parse Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 3,
+        "output": "={{ $json._branch }}"
+      },
+      "id": "b8f144d7-6755-4d41-8480-c7a3730fabce",
+      "name": "Intent Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        784,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "calendar",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_SLACK_USERNAME@gmail.com",
+          "mode": "list",
+          "cachedResultName": "YOUR_SLACK_USERNAME@gmail.com"
+        },
+        "timeMin": "={{ $now.setZone('Asia/Manila').plus({ days: 1 }).startOf('day') }}",
+        "timeMax": "=={{ $now.setZone('Asia/Manila').plus({ days: 1 }).endOf('day') }}",
+        "options": {
+          "outputFormat": "bookedSlots",
+          "timezone": {
+            "__rl": true,
+            "value": "Asia/Manila",
+            "mode": "list",
+            "cachedResultName": "Asia/Manila"
+          }
+        }
+      },
+      "id": "e84133da-c190-4984-b2e1-2e648676511b",
+      "name": "Calendar Free/Busy",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1008,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { DateTime } = require('luxon');\nconst tz = $env.USER_TZ || 'Europe/Bucharest';\nconst email = $('Parse Classification').first().json;\n\nconst busyRaw = $input.all().map(i => i.json).filter(Boolean);\nconst busy = busyRaw\n  .map(b => ({\n    start: DateTime.fromISO(b.start || b.startTime || b.timeMin, { zone: tz }),\n    end:   DateTime.fromISO(b.end   || b.endTime   || b.timeMax, { zone: tz })\n  }))\n  .filter(b => b.start.isValid && b.end.isValid)\n  .sort((a, b) => a.start - b.start);\n\nconst overlapsBusy = (slotStart, slotEnd) =>\n  busy.some(b => slotStart < b.end && slotEnd > b.start);\n\nconst SLOT_MIN = 30;\nconst slots = [];\nlet day = DateTime.now().setZone(tz).plus({ days: 1 }).startOf('day');\nlet daysChecked = 0;\nwhile (slots.length < 3 && daysChecked < 7) {\n  const weekday = day.weekday;\n  if (weekday >= 1 && weekday <= 5) {\n    for (let h = 9; h < 18 && slots.length < 3; h++) {\n      for (const m of [0, 30]) {\n        const slotStart = day.set({ hour: h, minute: m });\n        const slotEnd = slotStart.plus({ minutes: SLOT_MIN });\n        if (slotStart < DateTime.now().setZone(tz).plus({ hours: 2 })) continue;\n        if (overlapsBusy(slotStart, slotEnd)) continue;\n        slots.push({\n          startISO: slotStart.toISO(),\n          endISO:   slotEnd.toISO(),\n          readable: slotStart.toFormat(\"cccc, LLL d 'at' h:mm a\") + ' ' + slotStart.toFormat('ZZZZ')\n        });\n        if (slots.length >= 3) break;\n      }\n    }\n  }\n  day = day.plus({ days: 1 });\n  daysChecked++;\n}\n\nreturn [{ json: { ...email, slots, slotsText: slots.map((s, i) => `${i + 1}. ${s.readable}`).join('\\n') } }];"
+      },
+      "id": "6916acd3-92d7-41bd-9b7d-7fcf8f1b05b7",
+      "name": "Compute 3 Free Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Draft a concise, professional reply offering 3 specific time slots.\n\nOriginal subject: {{ $json.subject }}\nSender first name: {{ $json.sender_name }}\nOriginal message (for context, do not quote):\n{{ $json.body }}\n\nProposed slots (already filtered against my calendar, in my timezone):\n{{ $json.slotsText }}\n\nWrite the reply body only — no greeting line beyond \"Hi {{ $json.sender_name }},\", no signature (it will be appended by Gmail). 3 short paragraphs max. Offer the slots as a numbered list. End with: \"If none of these work, share a couple of windows that suit you.\"",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You write short, warm, professional email replies on behalf of Andrei. Plain text only. No emojis. No marketing language."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "19864ead-29f2-4032-9cf5-c1f5fe03112e",
+      "name": "Draft — Meeting Reply",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1488,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 500,
+          "temperature": 0.4
+        }
+      },
+      "id": "1e645035-f5e5-457d-951e-5aa1c7e41fb7",
+      "name": "Groq — Drafter Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=Re: {{ $('Parse Classification').first().json.subject }}",
+        "message": "={{ $json.text }}",
+        "options": {
+          "threadId": "={{ $('Parse Classification').first().json.threadId }}",
+          "sendTo": "={{ $('Parse Classification').first().json.fromEmail }}"
+        }
+      },
+      "id": "5a7d45bd-92e3-42f5-a764-6cdea940b605",
+      "name": "Gmail — Save Meeting Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        352
+      ],
+      "webhookId": "ai-inbox-meeting-draft"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Inbox Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Received At": "={{ $json.receivedAt }}",
+            "From Name": "={{ $json.fromEmail }}",
+            "From Email": "={{ $json.fromEmail }}",
+            "Subject": "={{ $json.subject }}",
+            "Summary": "={{ $json.summary }}",
+            "Urgency": "={{ $json.urgency }}",
+            "Confidence": "={{ $json.confidence }}",
+            "Thread ID": "={{ $json.threadId }}",
+            "Status": "Drafted"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Received At",
+              "displayName": "Received At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "From Name",
+              "displayName": "From Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "From Email",
+              "displayName": "From Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Subject",
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Summary",
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Urgency",
+              "displayName": "Urgency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Confidence",
+              "displayName": "Confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Thread ID",
+              "displayName": "Thread ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "591acb7e-31c7-49dd-aa03-3598ec69f6cd",
+      "name": "Append Lead to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1232,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Draft a polite acknowledgement reply.\n\nOriginal subject: {{ $('Parse Classification').first().json.subject }}\nSender first name: {{ $('Parse Classification').first().json.sender_name }}\nOriginal message (for context, do not quote):\n{{ $('Parse Classification').first().json.body }}\nClassification summary: {{ $('Parse Classification').first().json.summary }}\n\nWrite the reply body only — no greeting line beyond \"Hi {{ $('Parse Classification').first().json.sender_name }},\", no signature (Gmail appends it). 2 short paragraphs. Acknowledge their message specifically (reference one concrete thing they mentioned), and commit to a substantive reply within one business day. Do not promise pricing, scope, or timelines.",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You write short, warm, professional email replies on behalf of Andrei. Plain text only. No emojis. No marketing language."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "e98e0ff9-ba0f-4c6e-ac84-226e0ee07844",
+      "name": "Draft — Lead Reply",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1456,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "=Re: {{ $('Parse Classification').first().json.subject }}",
+        "message": "={{ $json.text }}",
+        "options": {
+          "threadId": "={{ $('Parse Classification').first().json.threadId }}",
+          "sendTo": "={{ $('Parse Classification').first().json.fromEmail }}"
+        }
+      },
+      "id": "9800d679-b5ca-4d6d-b8bd-58a8a2ff59a8",
+      "name": "Gmail — Save Lead Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        640
+      ],
+      "webhookId": "ai-inbox-lead-draft"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Parse Classification').first().json.messageId }}",
+        "labelIds": [
+          "YOUR_AI_SPAM_LABEL_ID"
+        ]
+      },
+      "id": "09e3eb55-d098-4018-ad09-9761c940edae",
+      "name": "Gmail — Label Spam",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1728,
+        976
+      ],
+      "webhookId": "ai-inbox-label-spam"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "messageId",
+              "value": "={{ $('Parse Classification').first().json.messageId }}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "intent",
+              "value": "={{ $('Parse Classification').first().json.intent }}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "subject",
+              "value": "={{ $('Parse Classification').first().json.subject }}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "fromEmail",
+              "value": "={{ $('Parse Classification').first().json.fromEmail }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "877710c8-b24a-430b-bf16-4b5d5db70619",
+      "name": "Normalize Triage Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2032,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.messageId }}",
+        "labelIds": [
+          "YOUR_GMAIL_LABEL_ID"
+        ]
+      },
+      "id": "e8e4a173-26c1-4cb1-b82a-317f08904ace",
+      "name": "Gmail — Mark Triaged",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2256,
+        640
+      ],
+      "webhookId": "ai-inbox-mark-triaged"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "true",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cdc96a36-f068-4405-bd9b-05ed08dd7d8a",
+      "name": "Slack Notify Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2480,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#gmail-triage",
+          "mode": "name"
+        },
+        "text": "=:incoming_envelope: *Triaged:* {{ $('Normalize Triage Result').item.json.subject }}\n*From:* {{ $('Normalize Triage Result').item.json.fromEmail }}\n*Intent:* `{{ $('Normalize Triage Result').item.json.intent }}` — draft saved in Gmail\n*summary:* {{ $json.snippet }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "id": "30f1b8a8-170c-4b85-935f-9271bad4e4e7",
+      "name": "Slack — Triage Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        2720,
+        592
+      ],
+      "webhookId": "ai-inbox-slack-notify"
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email": {
+      "main": [
+        [
+          {
+            "node": "Groq Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq — Classifier Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Groq Classifier",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Triage JSON Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Groq Classifier",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Classifier": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification": {
+      "main": [
+        [
+          {
+            "node": "Intent Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent Switch": {
+      "main": [
+        [
+          {
+            "node": "Calendar Free/Busy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Lead to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail — Label Spam",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendar Free/Busy": {
+      "main": [
+        [
+          {
+            "node": "Compute 3 Free Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute 3 Free Slots": {
+      "main": [
+        [
+          {
+            "node": "Draft — Meeting Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq — Drafter Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Draft — Meeting Reply",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Draft — Lead Reply",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft — Meeting Reply": {
+      "main": [
+        [
+          {
+            "node": "Gmail — Save Meeting Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail — Save Meeting Draft": {
+      "main": [
+        [
+          {
+            "node": "Normalize Triage Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Lead to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Draft — Lead Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft — Lead Reply": {
+      "main": [
+        [
+          {
+            "node": "Gmail — Save Lead Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail — Save Lead Draft": {
+      "main": [
+        [
+          {
+            "node": "Normalize Triage Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail — Label Spam": {
+      "main": [
+        [
+          {
+            "node": "Normalize Triage Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Triage Result": {
+      "main": [
+        [
+          {
+            "node": "Gmail — Mark Triaged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail — Mark Triaged": {
+      "main": [
+        [
+          {
+            "node": "Slack Notify Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Notify Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Slack — Triage Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "aiBuilderAssisted": true,
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

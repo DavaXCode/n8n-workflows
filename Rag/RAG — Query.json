@@ -1,0 +1,388 @@
+{
+  "name": "RAG — Query",
+  "description": "Slack /ask slash command: embeds query with Jina, runs pgvector cosine search on documents, builds context, asks Groq Llama-3.3-70B to answer, posts in-channel reply via response_url.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rag/ask",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "80eb7dbe-e1a5-4d13-b11a-87742468f8b1",
+      "name": "Query Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2672,
+        -224
+      ],
+      "webhookId": "09c98a99-5cd3-47a9-b0ec-a759dc6c967e"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"response_type\":\"ephemeral\",\"text\":\"⏳ Searching knowledge base...\"}",
+        "options": {}
+      },
+      "id": "39b09ed8-ed94-4e80-b5cc-92bf8b83cca8",
+      "name": "Respond ACK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -2448,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.jina.ai/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'jina-embeddings-v3', input: [$('Query Webhook').first().json.body.text], dimensions: 1024}) }}",
+        "options": {}
+      },
+      "id": "beed2d4c-414b-4ade-aeee-b79f62965822",
+      "name": "Jina Embed Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2224,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const embedding = $json.data[0].embedding;\nconst embeddingStr = JSON.stringify(embedding);\nconst sql = `SELECT content, source_name, source_url, 1 - (embedding <=> '${embeddingStr}'::vector) AS similarity FROM documents ORDER BY embedding <=> '${embeddingStr}'::vector LIMIT 5`;\nreturn [{ json: { sql } }];"
+      },
+      "id": "24cf7ee5-704c-4874-b98b-47fbbf51f330",
+      "name": "Prepare Vector SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2000,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.sql }}",
+        "options": {}
+      },
+      "id": "132d244a-b582-4c94-bbea-fed35ddfbcc9",
+      "name": "Vector Search",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1776,
+        -224
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all();\nconst webhookBody = $('Query Webhook').first().json.body;\nreturn [{ json: {\n  results: results.map(r => r.json).filter(r => r && r.content),\n  has_results: results.length > 0 && results.some(r => r.json && r.json.content),\n  result_count: results.length,\n  response_url: webhookBody.response_url,\n  user_question: webhookBody.text,\n  user_name: webhookBody.user_name || 'teammate'\n}}];"
+      },
+      "id": "e40fde85-2590-4867-a9fa-17e3600922af",
+      "name": "Collect Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1552,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_results }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "71d514c0-16d6-4e67-bce5-8d7ab5e8c465",
+      "name": "Has Results?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1328,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\nconst context = data.results\n  .map((r, i) => `[${i+1}] ${r.content}\\nSource: ${r.source_name || 'unknown'}`)\n  .join('\\n\\n---\\n\\n');\nconst sources = [...new Set(data.results.map(r => r.source_name).filter(Boolean))];\n\nreturn [{ json: {\n  context,\n  sources: sources.join(', '),\n  response_url: data.response_url,\n  user_question: data.user_question,\n  user_name: data.user_name\n}}];"
+      },
+      "id": "db29d896-910f-40f7-b56d-94b05bbac996",
+      "name": "Build Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1104,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'llama-3.3-70b-versatile', messages: [{role: 'system', content: 'You are a helpful internal knowledge assistant. Answer the question using ONLY the context provided below. Be concise and accurate. At the end of your answer, list the sources under a \"Sources:\" heading.\\n\\nContext:\\n' + $json.context}, {role: 'user', content: $json.user_question}], max_tokens: 800, temperature: 0.3}) }}",
+        "options": {}
+      },
+      "id": "813ae1c8-e3d2-4c35-8632-650fad0cb155",
+      "name": "Groq LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -880,
+        -320
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "60a804b2-3f31-4e89-a0f8-d97f19a1ba55",
+      "name": "Groq OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -656,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Build Context').item.json.response_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({response_type: 'in_channel', text: '*' + $('Build Context').item.json.user_name + ' asked:* ' + $('Build Context').item.json.user_question + '\\n\\n' + $json.choices[0].message.content, unfurl_links: false}) }}",
+        "options": {}
+      },
+      "id": "b3c67ef5-7b69-4917-be47-72d2e3fd58a2",
+      "name": "Post Answer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -432,
+        -416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Build Context').item.json.response_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"response_type\":\"ephemeral\",\"text\":\"⚠️ Sorry, I ran into an error generating an answer. Please try again in a moment.\"}",
+        "options": {}
+      },
+      "id": "b20c0d16-74a5-44a1-92e7-7f39adcf3a14",
+      "name": "Post Groq Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -432,
+        -224
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.response_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"response_type\":\"ephemeral\",\"text\":\"🔍 I couldn't find anything relevant to your question — try rephrasing or check if the document has been ingested.\"}",
+        "options": {}
+      },
+      "id": "b5fa1a06-b292-4f41-83ef-41d377e06dfa",
+      "name": "No Results Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1024,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Query Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond ACK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond ACK": {
+      "main": [
+        [
+          {
+            "node": "Jina Embed Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jina Embed Query": {
+      "main": [
+        [
+          {
+            "node": "Prepare Vector SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Vector SQL": {
+      "main": [
+        [
+          {
+            "node": "Vector Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Search": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Results": {
+      "main": [
+        [
+          {
+            "node": "Has Results?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Results?": {
+      "main": [
+        [
+          {
+            "node": "Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Results Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Context": {
+      "main": [
+        [
+          {
+            "node": "Groq LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq LLM": {
+      "main": [
+        [
+          {
+            "node": "Groq OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq OK?": {
+      "main": [
+        [
+          {
+            "node": "Post Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post Groq Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "meta": {
+    "aiBuilderAssisted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,851 @@
+{
+  "name": "Lead Funnel — B2B Portfolio",
+  "description": "B2B lead funnel: scores inbound leads via Groq LLM (native chainLlm + lmChatGroq sub-node), logs to Sheets, routes tier, emails + Slack alerts, plus Cal.com booking + reminder chains.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-funnel",
+        "options": {}
+      },
+      "id": "773285db-68df-4d8f-afc4-75ebf6cf9003",
+      "name": "Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1344,
+        192
+      ],
+      "webhookId": "0f772730-f155-45a2-90d5-79603116c8d7"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body ?? $input.first().json;\nconst { name, email, message, company = '', role = '', inquiry = '', budget_range = '' } = body;\n\nif (!name || !email) {\n  throw new Error('Missing required fields: name, email');\n}\n\nreturn [{\n  json: {\n    name: String(name).trim(),\n    email: String(email).toLowerCase().trim(),\n    company: String(company).trim(),\n    role: String(role).trim(),\n    inquiry: String(inquiry).trim(),\n    message: String(message || '').trim(),\n    budget_range: String(budget_range).trim(),\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "14fe539b-6c71-4dba-992d-d1fad95c67df",
+      "name": "Validate & Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Qualify this B2B lead and generate a 3-4 step n8n automation plan:\nName: {{ $json.name }}\nCompany: {{ $json.company }}\nRole: {{ $json.role }}\nMessage: {{ $json.message }}\n\nScoring: 8-10=decision maker with urgent need and budget, 5-7=interested prospect, 1-4=low intent.\n\nFor solution_steps: 3-4 specific n8n workflow steps that directly solve their stated problem. Each step max 90 chars, starts with action verb, references real tools (Gmail, Slack, Sheets, webhook, CRM) where relevant.",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a B2B lead qualification expert specializing in n8n automation. Analyze the lead and qualify it. Return a score 1-10, a <=100-char summary, an intent (one of demo_request, pricing_inquiry, general_question, partnership), a one-sentence problem statement, and 3-4 solution_steps."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "id": "114e40b3-056b-48f8-82fc-5b578cfe19f9",
+      "name": "Groq AI Enrichment",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -896,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "maxTokensToSample": 500,
+          "temperature": 0.3
+        }
+      },
+      "id": "42dd2905-33b3-4413-8009-b1f05bd1c8ab",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{ \"score\": 8, \"summary\": \"Short summary\", \"intent\": \"demo_request\", \"problem\": \"One-sentence problem\", \"solution_steps\": [\"Step 1\", \"Step 2\", \"Step 3\"] }"
+      },
+      "id": "87b749f8-e6b5-4b8e-bdc8-a46c7cce2713",
+      "name": "Lead JSON Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -768,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('Validate & Normalize').first().json;\nconst out = $input.first().json.output ?? {};\n\nlet aiData = {\n  score: 5,\n  summary: 'Could not analyse lead',\n  intent: 'general_question',\n  problem: 'Needs an automation solution',\n  solution_steps: [\n    'Connect contact form to n8n via webhook trigger',\n    'Process and route data based on business rules',\n    'Send automated responses via email and Slack',\n    'Log all activity to Google Sheets for visibility'\n  ]\n};\nif (out && typeof out === 'object') aiData = { ...aiData, ...out };\n\nconst pricingInquiries = ['ai-automation', 'complex-automation', 'web-dev'];\nconst minScore = pricingInquiries.includes(lead.inquiry) ? 8 : 1;\n\nconst score = Math.min(10, Math.max(minScore, parseInt(aiData.score) || 5));\nlet tier, tier_index;\nif (score >= 8)      { tier = 'hot';  tier_index = 0; }\nelse if (score >= 5) { tier = 'warm'; tier_index = 1; }\nelse                 { tier = 'cold'; tier_index = 2; }\n\nconst solution_steps = Array.isArray(aiData.solution_steps)\n  ? aiData.solution_steps.slice(0, 4)\n  : [];\n\nreturn [{ json: {\n  ...lead,\n  score,\n  tier,\n  tier_index,\n  ai_summary: String(aiData.summary || '').slice(0, 100),\n  problem: String(aiData.problem || '').slice(0, 200),\n  solution_steps,\n  intent: aiData.intent || 'general_question',\n  status: 'New'\n}}];"
+      },
+      "id": "5f31c354-84a9-40a7-a4d4-965909d4e774",
+      "name": "Parse & Score Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1xslLPj2MeINtMkAtEy1JkHtMtkTUF9thIom9CtMfcB8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.timestamp }}",
+            "Name": "={{ $json.name }}",
+            "Email": "={{ $json.email }}",
+            "Company": "={{ $json.company }}",
+            "Role": "={{ $json.role }}",
+            "Score": "={{ $json.score }}",
+            "Tier": "={{ $json.tier }}",
+            "AI Summary": "={{ $json.ai_summary }}",
+            "Intent": "={{ $json.intent }}",
+            "Budget": "={{ $json.budget_range }}",
+            "Status": "={{ $json.status }}"
+          },
+          "schema": [
+            {
+              "id": "Timestamp",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Timestamp",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Email",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Company",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Role",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Role",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Score",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Score",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Tier",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Tier",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AI Summary",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "AI Summary",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Intent",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Intent",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Budget",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Budget",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Status",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c03e1893-f5d9-4531-8d57-f35fea40a988",
+      "name": "Log to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -320,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('Parse & Score Lead').first().json;\nconst tier_index = lead.tier_index;\nreturn [{ json: {\n  name: lead.name,\n  email: lead.email,\n  company: lead.company,\n  role: lead.role,\n  inquiry: lead.inquiry,\n  message: lead.message,\n  score: lead.score,\n  tier: lead.tier,\n  ai_summary: lead.ai_summary,\n  problem: lead.problem,\n  solution_steps: lead.solution_steps,\n  intent: lead.intent,\n  budget_range: lead.budget_range,\n  timestamp: lead.timestamp,\n  _branch: tier_index\n} }];"
+      },
+      "id": "880b7029-f1ea-434d-ad78-92dea6be69a0",
+      "name": "Route by Tier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 3,
+        "output": "={{ $json._branch }}"
+      },
+      "id": "ed0480f9-e2e8-4e32-9961-865b2c2f8fdb",
+      "name": "Tier Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        128,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "=Here’s exactly how I’d automate this for {{ $json.company || 'you' }}, {{ $json.name }}",
+        "message": "=<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f4f4f5;\"><tr><td align=\"center\" style=\"padding:40px 16px;\"><table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;width:100%;\"><tr><td style=\"background:#0a0a0a;padding:28px 36px;border-radius:12px 12px 0 0;\"><p style=\"color:#fff;font-size:19px;font-weight:700;margin:0;letter-spacing:-0.01em;\">Andrei Mar Dava</p><p style=\"color:#60a5fa;font-size:12px;margin:5px 0 0;letter-spacing:0.03em;\">AI Automation &amp; Full-Stack Engineer</p></td></tr><tr><td style=\"background:#ffffff;padding:32px 36px;border:1px solid #e5e7eb;border-top:none;border-bottom:none;\"><p style=\"color:#111827;font-size:16px;font-weight:700;margin:0 0 6px;font-family:sans-serif;\">Hi {{ $json.name }},</p><p style=\"color:#374151;font-size:14px;line-height:1.7;margin:0 0 24px;font-family:sans-serif;\">I reviewed your message. This is exactly the kind of problem I solve &mdash; here's the automation plan I'd build for <strong>{{ $json.company || 'your business' }}</strong>:</p><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:28px;\"><tr><td style=\"background:#fefce8;border-left:4px solid #d97706;padding:14px 18px;border-radius:0 8px 8px 0;\"><p style=\"color:#78350f;font-size:13px;margin:0;line-height:1.6;font-family:sans-serif;\"><strong>The problem:</strong> {{ $json.problem }}</p></td></tr></table><p style=\"color:#6b7280;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 16px;font-family:sans-serif;\">The n8n automation plan:</p>{{ ($json.solution_steps || []).map((s,i) => '<table cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin-bottom:10px;\"><tr><td style=\"width:26px;vertical-align:top;padding-top:1px;\"><span style=\\\"display:inline-block;background:#111827;color:#60a5fa;font-family:sans-serif;font-size:10px;font-weight:700;width:22px;height:22px;border-radius:50%;text-align:center;line-height:22px;\\\">'+(i+1)+'</span></td><td style=\"padding-left:12px;vertical-align:top;\"><p style=\\\"color:#374151;font-size:13px;line-height:1.6;margin:0;font-family:sans-serif;\\\">'+s+'</p></td></tr></table>').join('') }}<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:24px 0;\"><tr><td style=\"border-top:1px solid #f3f4f6;height:1px;\"></td></tr></table><p style=\"color:#374151;font-size:14px;line-height:1.7;margin:0 0 20px;font-family:sans-serif;\">I'll come prepared with a full build plan scoped to <strong>{{ $json.company || 'your business' }}</strong> &mdash; no time trackers, no check-ins, just delivery.</p><table cellpadding=\"0\" cellspacing=\"0\"><tr><td><a href=\"https://cal.com/andrei-mar-pbfvwh/discovery-15\" style=\"display:inline-block;background:#111827;color:#ffffff;font-size:14px;font-weight:600;padding:13px 26px;border-radius:8px;text-decoration:none;letter-spacing:0.01em;\">Book a 30-min call &rarr;</a></td></tr></table></td></tr><tr><td style=\"background:#f9fafb;padding:20px 36px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;\"><p style=\"color:#9ca3af;font-size:12px;margin:0;font-family:sans-serif;\">&#8212; Andrei &middot; <a href=\"https://andrei.figliounicotech.online\" style=\"color:#60a5fa;text-decoration:none;\">andrei.figliounicotech.online</a></p></td></tr></table></td></tr></table>",
+        "options": {}
+      },
+      "id": "d8c0e569-6564-40da-9b6c-4b73cc9174ee",
+      "name": "Email — Hot Lead",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        352,
+        0
+      ],
+      "webhookId": "296c7cc2-295c-4554-9777-24fc42068df6"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "=Here’s how I’d approach {{ $json.company || 'your project' }}, {{ $json.name }}",
+        "message": "=<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f4f4f5;\"><tr><td align=\"center\" style=\"padding:40px 16px;\"><table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;width:100%;\"><tr><td style=\"background:#0a0a0a;padding:28px 36px;border-radius:12px 12px 0 0;\"><p style=\"color:#fff;font-size:19px;font-weight:700;margin:0;letter-spacing:-0.01em;\">Andrei Mar Dava</p><p style=\"color:#60a5fa;font-size:12px;margin:5px 0 0;letter-spacing:0.03em;\">AI Automation &amp; Full-Stack Engineer</p></td></tr><tr><td style=\"background:#ffffff;padding:32px 36px;border:1px solid #e5e7eb;border-top:none;border-bottom:none;\"><p style=\"color:#111827;font-size:16px;font-weight:700;margin:0 0 6px;font-family:sans-serif;\">Hi {{ $json.name }},</p><p style=\"color:#374151;font-size:14px;line-height:1.7;margin:0 0 24px;font-family:sans-serif;\">Thanks for reaching out. I went through your message and have a clear picture of what you're working with.</p><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:24px;\"><tr><td style=\"background:#f0fdf4;border-left:4px solid #16a34a;padding:14px 18px;border-radius:0 8px 8px 0;\"><p style=\"color:#15803d;font-size:13px;margin:0;line-height:1.6;font-family:sans-serif;\"><strong>My read:</strong> {{ $json.problem }}</p></td></tr></table><p style=\"color:#6b7280;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 12px;font-family:sans-serif;\">Where I'd start:</p><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:24px;\">{{ ($json.solution_steps || []).slice(0,2).map((s,i) => '<tr><td style=\"padding:10px 0;border-bottom:1px solid #f3f4f6;\"><p style=\\\"color:#374151;font-size:13px;line-height:1.6;margin:0;font-family:sans-serif;\\\"><strong style=\\\"color:#059669;\\\">Step '+(i+1)+':</strong> '+s+'</p></td></tr>').join('') }}</table><p style=\"color:#374151;font-size:14px;line-height:1.7;margin:0 0 20px;font-family:sans-serif;\">A 30-minute call is enough to map out the full scope. I'll have a plan ready before we even get on &mdash; no commitment needed.</p><table cellpadding=\"0\" cellspacing=\"0\"><tr><td><a href=\"https://cal.com/andrei-mar-pbfvwh/discovery-15\" style=\"display:inline-block;background:#111827;color:#ffffff;font-size:14px;font-weight:600;padding:13px 26px;border-radius:8px;text-decoration:none;letter-spacing:0.01em;\">Schedule a quick call &rarr;</a></td></tr></table></td></tr><tr><td style=\"background:#f9fafb;padding:20px 36px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;\"><p style=\"color:#9ca3af;font-size:12px;margin:0;font-family:sans-serif;\">&#8212; Andrei &middot; <a href=\"https://andrei.figliounicotech.online\" style=\"color:#60a5fa;text-decoration:none;\">andrei.figliounicotech.online</a></p></td></tr></table></td></tr></table>",
+        "options": {}
+      },
+      "id": "0dd2fdc1-a126-4869-9f12-86b7e5643422",
+      "name": "Email — Warm Lead",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        352,
+        256
+      ],
+      "webhookId": "f24282cb-5836-48c3-803c-ab9f57a01658"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "=What I build and how it might help, {{ $json.name }}",
+        "message": "=<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f4f4f5;\"><tr><td align=\"center\" style=\"padding:40px 16px;\"><table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;width:100%;\"><tr><td style=\"background:#0a0a0a;padding:28px 36px;border-radius:12px 12px 0 0;\"><p style=\"color:#fff;font-size:19px;font-weight:700;margin:0;letter-spacing:-0.01em;\">Andrei Mar Dava</p><p style=\"color:#60a5fa;font-size:12px;margin:5px 0 0;letter-spacing:0.03em;\">AI Automation &amp; Full-Stack Engineer</p></td></tr><tr><td style=\"background:#ffffff;padding:32px 36px;border:1px solid #e5e7eb;border-top:none;border-bottom:none;\"><p style=\"color:#111827;font-size:16px;font-weight:700;margin:0 0 6px;font-family:sans-serif;\">Hi {{ $json.name }},</p><p style=\"color:#374151;font-size:14px;line-height:1.7;margin:0 0 24px;font-family:sans-serif;\">Thanks for the message. Here's a quick overview of what I build and how it might fit what you're working on.</p><p style=\"color:#6b7280;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 14px;font-family:sans-serif;\">What I build:</p><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:24px;\"><tr><td style=\"padding:10px 0;border-bottom:1px solid #f3f4f6;\"><p style=\"color:#374151;font-size:13px;margin:0;font-family:sans-serif;\">&#9679;&nbsp; <strong>AI lead funnels</strong> &mdash; score, route, and respond to inbound leads automatically</p></td></tr><tr><td style=\"padding:10px 0;border-bottom:1px solid #f3f4f6;\"><p style=\"color:#374151;font-size:13px;margin:0;font-family:sans-serif;\">&#9679;&nbsp; <strong>Customer service automation</strong> &mdash; AI handles replies, escalations &amp; reports 24/7</p></td></tr><tr><td style=\"padding:10px 0;border-bottom:1px solid #f3f4f6;\"><p style=\"color:#374151;font-size:13px;margin:0;font-family:sans-serif;\">&#9679;&nbsp; <strong>n8n workflows</strong> &mdash; connect your CRM, email, Slack, Sheets, and any API</p></td></tr><tr><td style=\"padding:10px 0;\"><p style=\"color:#374151;font-size:13px;margin:0;font-family:sans-serif;\">&#9679;&nbsp; <strong>Web platforms</strong> &mdash; custom business tools built around how you actually operate</p></td></tr></table><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:24px;\"><tr><td style=\"background:#eff6ff;border-left:4px solid #2563eb;padding:14px 18px;border-radius:0 8px 8px 0;\"><p style=\"color:#1e40af;font-size:13px;margin:0;line-height:1.6;font-family:sans-serif;\"><strong>Free process audit:</strong> Describe one thing your team does manually &mdash; I'll map out what can be automated, what it takes to build, and the cost. No commitment.</p></td></tr></table><table cellpadding=\"0\" cellspacing=\"0\"><tr><td><a href=\"https://cal.com/andrei-mar-pbfvwh/discovery-15\" style=\"display:inline-block;background:#111827;color:#ffffff;font-size:14px;font-weight:600;padding:13px 26px;border-radius:8px;text-decoration:none;letter-spacing:0.01em;\">Request free audit &rarr;</a></td></tr></table></td></tr><tr><td style=\"background:#f9fafb;padding:20px 36px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;\"><p style=\"color:#9ca3af;font-size:12px;margin:0;font-family:sans-serif;\">&#8212; Andrei &middot; <a href=\"https://andrei.figliounicotech.online\" style=\"color:#60a5fa;text-decoration:none;\">andrei.figliounicotech.online</a></p></td></tr></table></td></tr></table>",
+        "options": {}
+      },
+      "id": "f0270697-6f46-43d1-b1e8-ac93192c352a",
+      "name": "Email — Cold Lead",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        352,
+        496
+      ],
+      "webhookId": "3a899c15-43bc-48f2-a2ae-226688fa9ad9"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cal-booking",
+        "options": {}
+      },
+      "id": "fea3eaa6-628d-4e1d-9af2-33a9f445f4ea",
+      "name": "Cal.com Booking Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1344,
+        608
+      ],
+      "webhookId": "d0fe1edf-fdb9-4849-b88a-3bfee359bde4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body ?? $input.first().json;\nconst payload = body.payload ?? body;\n\nconst bookingId = payload.uid ?? payload.bookingId ?? 'unknown';\nconst attendees = payload.attendees ?? [];\nconst guestName = attendees[0]?.name ?? payload.responses?.name?.value ?? 'Unknown';\nconst guestEmail = attendees[0]?.email ?? payload.responses?.email?.value ?? '';\nconst startTime = payload.startTime ?? payload.startTimestamp ?? '';\nconst meetLink = payload.videoCallUrl ?? payload.metadata?.videoCallUrl ?? '';\n\nconst months = ['January','February','March','April','May','June','July','August','September','October','November','December'];\nlet readableTime = 'Time not available';\nlet calendarUrlGoogle = '', calendarUrlOutlook = '', calendarUrlYahoo = '', calendarUrlApple = '';\n\nif (startTime) {\n  const dt = new Date(startTime);\n  if (!isNaN(dt)) {\n    const month = months[dt.getUTCMonth()];\n    const day = dt.getUTCDate();\n    let hours = dt.getUTCHours();\n    const minutes = String(dt.getUTCMinutes()).padStart(2, '0');\n    const ampm = hours >= 12 ? 'PM' : 'AM';\n    hours = hours % 12 || 12;\n    readableTime = `${month} ${day} at ${hours}:${minutes} ${ampm} UTC`;\n\n    const end = new Date(dt.getTime() + 30 * 60 * 1000);\n    const fmt = (d) => d.toISOString().replace(/[-:.]/g,'').slice(0,15) + 'Z';\n\n    const title = encodeURIComponent('30-min call with Andrei');\n    const desc  = encodeURIComponent('Join via Google Meet: ' + meetLink);\n    const loc   = encodeURIComponent(meetLink || 'Online');\n\n    calendarUrlGoogle  = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(dt)}/${fmt(end)}&details=${desc}&location=${loc}`;\n    calendarUrlOutlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${title}&startdt=${encodeURIComponent(dt.toISOString())}&enddt=${encodeURIComponent(end.toISOString())}&body=${desc}&location=${loc}`;\n    const yFmt = (d) => d.toISOString().replace(/[-:]/g,'').replace(/\\.\\d{3}Z/,'Z');\n    calendarUrlYahoo   = `https://calendar.yahoo.com/?v=60&title=${title}&st=${yFmt(dt)}&et=${yFmt(end)}&desc=${desc}&in_loc=${loc}`;\n    const ics = `BEGIN:VCALENDAR\\r\\nVERSION:2.0\\r\\nBEGIN:VEVENT\\r\\nDTSTART:${fmt(dt)}\\r\\nDTEND:${fmt(end)}\\r\\nSUMMARY:30-min call with Andrei\\r\\nDESCRIPTION:Join via Google Meet: ${meetLink}\\r\\nLOCATION:${meetLink || 'Online'}\\r\\nEND:VEVENT\\r\\nEND:VCALENDAR`;\n    calendarUrlApple   = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);\n  }\n}\n\nreturn [{ json: { bookingId, guestName, guestEmail, startTime, meetLink, readableTime, calendarUrlGoogle, calendarUrlOutlook, calendarUrlYahoo, calendarUrlApple } }];"
+      },
+      "id": "2afadf51-d9ff-4de3-87d9-9a309577674e",
+      "name": "Extract Booking Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1xslLPj2MeINtMkAtEy1JkHtMtkTUF9thIom9CtMfcB8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Bookings"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Booking ID": "={{ $('Extract Booking Data').first().json.bookingId }}",
+            "Guest Name": "={{ $('Extract Booking Data').first().json.guestName }}",
+            "Guest Email": "={{ $('Extract Booking Data').first().json.guestEmail }}",
+            "Start Time": "={{ $('Extract Booking Data').first().json.startTime }}",
+            "Meet Link": "={{ $('Extract Booking Data').first().json.meetLink }}",
+            "Reminded": "FALSE"
+          },
+          "schema": [
+            {
+              "id": "Booking ID",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Booking ID",
+              "defaultMatch": true,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Guest Name",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Guest Name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Guest Email",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Guest Email",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Start Time",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Start Time",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Meet Link",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Meet Link",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reminded",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Reminded",
+              "defaultMatch": false,
+              "canBeUsedToMatch": false
+            }
+          ],
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "id": "75a6b31b-90c0-467a-991c-a0d34f846127",
+      "name": "Append Booking to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -672,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Extract Booking Data').first().json.guestEmail }}",
+        "subject": "=Your call with Andrei is confirmed — {{ $('Extract Booking Data').first().json.readableTime }}",
+        "message": "=<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:#f4f4f5;\"><tr><td align=\"center\" style=\"padding:40px 16px;\"><table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;width:100%;\"><tr><td style=\"background:#0a0a0a;padding:28px 36px;border-radius:12px 12px 0 0;\"><p style=\"color:#fff;font-size:19px;font-weight:700;margin:0;letter-spacing:-0.01em;\">Andrei Mar Dava</p><p style=\"color:#60a5fa;font-size:12px;margin:5px 0 0;letter-spacing:0.03em;\">AI Automation &amp; Full-Stack Engineer</p></td></tr><tr><td style=\"background:#ffffff;padding:32px 36px;border:1px solid #e5e7eb;border-top:none;border-bottom:none;\"><table cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:24px;\"><tr><td style=\"background:#ecfdf5;padding:10px 16px;border-radius:8px;border:1px solid #bbf7d0;\"><p style=\"color:#059669;font-size:13px;font-weight:700;margin:0;font-family:sans-serif;\">&#10003;&nbsp; Call confirmed</p></td></tr></table><p style=\"color:#111827;font-size:16px;font-weight:700;margin:0 0 8px;font-family:sans-serif;\">Hi {{ $('Extract Booking Data').first().json.guestName }},</p><p style=\"color:#374151;font-size:14px;line-height:1.7;margin:0 0 28px;font-family:sans-serif;\">Your 30-minute call with Andrei is confirmed. I'll come prepared with a clear plan for your situation &mdash; see you then.</p><table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;margin-bottom:24px;\"><tr><td style=\"padding:20px 24px;\"><p style=\"color:#6b7280;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;font-family:sans-serif;\">Date &amp; Time</p><p style=\"color:#111827;font-size:15px;font-weight:700;margin:0 0 16px;font-family:sans-serif;\">{{ $('Extract Booking Data').first().json.readableTime }}</p><p style=\"color:#6b7280;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px;font-family:sans-serif;\">Google Meet</p><a href=\"{{ $('Extract Booking Data').first().json.meetLink }}\" style=\"color:#2563eb;font-size:13px;text-decoration:none;font-family:sans-serif;\">{{ $('Extract Booking Data').first().json.meetLink }}</a></td></tr></table><table cellpadding=\"0\" cellspacing=\"0\" style=\"margin-bottom:28px;\"><tr><td><a href=\"{{ $('Extract Booking Data').first().json.meetLink }}\" style=\"display:inline-block;background:#111827;color:#ffffff;font-size:14px;font-weight:600;padding:13px 26px;border-radius:8px;text-decoration:none;letter-spacing:0.01em;\">Join Meeting &rarr;</a></td></tr></table><p style=\"color:#6b7280;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 12px;font-family:sans-serif;\">Add to calendar:</p><a href=\"{{ $('Extract Booking Data').first().json.calendarUrlGoogle }}\" style=\"display:inline-block;background:#ffffff;color:#374151;font-size:12px;font-weight:600;padding:8px 14px;border-radius:6px;text-decoration:none;border:1px solid #d1d5db;margin:0 6px 6px 0;\">Google Calendar</a><a href=\"{{ $('Extract Booking Data').first().json.calendarUrlOutlook }}\" style=\"display:inline-block;background:#ffffff;color:#374151;font-size:12px;font-weight:600;padding:8px 14px;border-radius:6px;text-decoration:none;border:1px solid #d1d5db;margin:0 6px 6px 0;\">Outlook</a><a href=\"{{ $('Extract Booking Data').first().json.calendarUrlYahoo }}\" style=\"display:inline-block;background:#ffffff;color:#374151;font-size:12px;font-weight:600;padding:8px 14px;border-radius:6px;text-decoration:none;border:1px solid #d1d5db;margin:0 6px 6px 0;\">Yahoo</a><a href=\"{{ $('Extract Booking Data').first().json.calendarUrlApple }}\" style=\"display:inline-block;background:#ffffff;color:#374151;font-size:12px;font-weight:600;padding:8px 14px;border-radius:6px;text-decoration:none;border:1px solid #d1d5db;margin:0 6px 6px 0;\">Apple Calendar</a></td></tr><tr><td style=\"background:#f9fafb;padding:20px 36px;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;\"><p style=\"color:#9ca3af;font-size:12px;margin:0;font-family:sans-serif;\">&#8212; Andrei &middot; <a href=\"https://andrei.figliounicotech.online\" style=\"color:#60a5fa;text-decoration:none;\">andrei.figliounicotech.online</a></p></td></tr></table></td></tr></table>",
+        "options": {
+          "ccList": "YOUR_SLACK_USERNAME@gmail.com"
+        }
+      },
+      "id": "cd840227-a967-48be-b753-cba2354e707f",
+      "name": "Email — Booking Confirmation",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -448,
+        608
+      ],
+      "webhookId": "4e8ca274-3de9-4b74-bc14-bf83357a2e67"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "6ff897ab-b70d-41f3-bc0a-25026dc6abf9",
+      "name": "Schedule — Every 15 Min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1344,
+        832
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n  if (items.length === 0) return [];\n\n  const now = new Date();\n  const months =\n  ['January','February','March','April','May','June','July','August','September','October','November','December'];\n\n  const upcoming = [];\n  items.forEach((item, i) => {\n    const obj = item.json || {};\n    const reminded = String(obj['Reminded'] || '').trim().toUpperCase();\n    if (reminded === 'TRUE') return;\n\n    const startTime = obj['Start Time'];\n    if (!startTime) return;\n\n    const dt = new Date(startTime);\n    if (isNaN(dt)) return;\n\n    const diffMin = (dt - now) / (1000 * 60);\n    if (diffMin >= 50 && diffMin <= 70) {\n      const month = months[dt.getUTCMonth()];\n      const day = dt.getUTCDate();\n      let hours = dt.getUTCHours();\n      const minutes = String(dt.getUTCMinutes()).padStart(2, '0');\n      const ampm = hours >= 12 ? 'PM' : 'AM';\n      hours = hours % 12 || 12;\n      const readableTime = `${month} ${day} at ${hours}:${minutes} ${ampm} UTC`;\n      upcoming.push({ json: { ...obj, readableTime, _rowIndex: i + 2 } });\n    }\n  });\n\n  return upcoming;"
+      },
+      "id": "13712ca5-1ad8-48b3-9729-57f580003e7c",
+      "name": "Filter Upcoming Bookings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -896,
+        832
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ 'https://sheets.googleapis.com/v4/spreadsheets/1xslLPj2MeINtMkAtEy1JkHtMtkTUF9thIom9CtMfcB8/values/Bookings!F' + $('Filter Upcoming Bookings').item.json._rowIndex + '?valueInputOption=RAW' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({range: 'Bookings!F' + $('Filter Upcoming Bookings').item.json._rowIndex, majorDimension: 'ROWS', values: [['TRUE']]}) }}",
+        "options": {}
+      },
+      "id": "7a3303a7-b76c-4435-b9b3-e237543f38b2",
+      "name": "Mark Reminded",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -448,
+        832
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#bookings",
+          "mode": "name"
+        },
+        "text": "=📅 *New booking:* {{ $json.guestName }} ({{ $json.guestEmail }})   🕐 {{ $json.readableTime }}   🔗 Google Meet: {{ $json.meetLink || '_no link_' }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        -896,
+        608
+      ],
+      "id": "c6be1e31-5ef9-4546-90ce-d24d18841c31",
+      "name": "Slack — #bookings1",
+      "webhookId": "3624eebc-1165-4e8f-a7a8-2a13b951f123"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#meetings",
+          "mode": "name"
+        },
+        "text": "=⏰ *Meeting in 1 hour:* {{ $json['Guest Name'] }} ({{ $json['Guest Email'] }})   🕐 {{ $json.readableTime }}   🔗 Google Meet: {{ $json['Meet Link'] || '_no link_' }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        -672,
+        832
+      ],
+      "id": "15eecf27-caf9-4456-b8e0-0fd710b6281e",
+      "name": "Send a message",
+      "webhookId": "ee4247eb-dca7-43a1-8d50-95c2a40441dd"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "#hot-leads",
+          "mode": "name"
+        },
+        "text": "=*New HOT lead* :fire:\n  *Name:* {{ $('Parse & Score Lead').first().json.name }}\n  *Company:* {{ $('Parse & Score Lead').first().json.company }}\n  *Score:* {{ $('Parse & Score Lead').first().json.score }}/10\n  *Intent:* {{ $('Parse & Score Lead').first().json.intent }}\n  *Summary:* {{ $('Parse & Score Lead').first().json.ai_summary }}\n  *Book a call:* https://cal.com/andrei-mar-pbfvwh/discovery-15",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        576,
+        0
+      ],
+      "id": "43ed582b-86cb-4907-8b2e-cfcc462e4509",
+      "name": "Send a message1",
+      "webhookId": "71cb75a7-fb16-42f2-9b7f-7ef6ef4c2eb3"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/edit",
+          "mode": "url"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Reminded",
+              "lookupValue": "false"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1120,
+        832
+      ],
+      "id": "c4185720-f301-477a-ae8f-0d663360be5c",
+      "name": "Get row(s) in sheet"
+    }
+  ],
+  "connections": {
+    "Lead Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate & Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Normalize": {
+      "main": [
+        [
+          {
+            "node": "Groq AI Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq AI Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Parse & Score Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Groq AI Enrichment",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead JSON Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Groq AI Enrichment",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Score Lead": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Route by Tier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Tier": {
+      "main": [
+        [
+          {
+            "node": "Tier Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tier Switch": {
+      "main": [
+        [
+          {
+            "node": "Email — Hot Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email — Warm Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email — Cold Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email — Hot Lead": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cal.com Booking Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Booking Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Booking Data": {
+      "main": [
+        [
+          {
+            "node": "Slack — #bookings1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Booking to Sheets": {
+      "main": [
+        [
+          {
+            "node": "Email — Booking Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule — Every 15 Min": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Upcoming Bookings": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack — #bookings1": {
+      "main": [
+        [
+          {
+            "node": "Append Booking to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Mark Reminded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message1": {
+      "main": [
+        []
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Filter Upcoming Bookings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "aiBuilderAssisted": true,
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

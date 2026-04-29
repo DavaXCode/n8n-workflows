@@ -1,0 +1,1582 @@
+{
+  "updatedAt": "2026-04-14T13:59:06.351Z",
+  "createdAt": "2026-04-12T13:15:08.086Z",
+  "name": "BTMS — Unified",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "tg-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        208,
+        608
+      ],
+      "webhookId": "b3727243-a9e4-41dd-8307-0cbdcc43b431",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json.message || {};\nconst text = (msg.text || '').trim();\nconst chatId = msg.chat?.id || msg.from?.id || null;\nconst cmd = text.startsWith('/') ? text.split(' ')[0].toLowerCase() : null;\nreturn [{ json: { text, chatId, cmd } }];"
+      },
+      "id": "parse-cmd",
+      "name": "Parse Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.cmd }}",
+                    "rightValue": "/analyze",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "analyze"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.cmd }}",
+                    "rightValue": "/portfolio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "portfolio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.cmd }}",
+                    "rightValue": "/history",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "history"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.cmd }}",
+                    "rightValue": "/help",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "help"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.cmd }}",
+                    "rightValue": "/scan",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "scan"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-switch",
+      "name": "Route Command",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        656,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { text, chatId, cmd } = $input.first().json;\nreturn [{ json: { chatId, symbol: text.split(' ')[1]?.toUpperCase() || 'BTCUSDT', query: text } }];"
+      },
+      "id": "set-analyze",
+      "name": "Set Analyze Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { chatId, symbol } = $input.first().json;\nreturn [{ json: { chatId, symbol } }];"
+      },
+      "id": "extract-symbol",
+      "name": "Extract Symbol",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1072,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "fetch-bybit",
+      "name": "Fetch Bybit Data & Compute Indicators",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "format-tech",
+      "name": "Format Tech Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-strategy-endpoint.example.com/analyze",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {},
+        "authentication": "none",
+        "specifyBody": "json",
+        "jsonBody": "{\"prompt\":\"STRATEGY_PROMPT_REDACTED\"}"
+      },
+      "id": "call-claude-tech",
+      "name": "Call Claude - Tech",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1776,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "parse-tech",
+      "name": "Parse Tech Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nreturn [{ json: { ...d, source: 'tech' } }];"
+      },
+      "id": "tag-tech",
+      "name": "Tag Tech Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { text, chatId } = $('Parse Command').first().json;\nconst symbol = text.split(' ')[1]?.toUpperCase() || 'BTCUSDT';\nreturn [{ json: { chatId, symbol } }];"
+      },
+      "id": "fetch-news",
+      "name": "Parse Symbol",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "format-fund",
+      "name": "Format Fund Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-strategy-endpoint.example.com/analyze",
+        "authentication": "none",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "{\"prompt\":\"STRATEGY_PROMPT_REDACTED\"}"
+      },
+      "id": "call-claude-fund",
+      "name": "Call Claude - Fund",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2048,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "parse-fund",
+      "name": "Parse Fund Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nreturn [{ json: { ...d, source: 'fund' } }];"
+      },
+      "id": "tag-fund",
+      "name": "Tag Fund Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "merge-analyses",
+      "name": "Merge Analyses",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2672,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "build-risk",
+      "name": "Build Risk Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2896,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-strategy-endpoint.example.com/analyze",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {},
+        "authentication": "none",
+        "specifyBody": "json",
+        "jsonBody": "{\"prompt\":\"STRATEGY_PROMPT_REDACTED\"}"
+      },
+      "id": "call-claude-risk",
+      "name": "Call Claude - Risk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3120,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "parse-risk",
+      "name": "Parse Risk Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3344,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "build-synthesis",
+      "name": "Build Synthesis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3568,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-strategy-endpoint.example.com/analyze",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {},
+        "authentication": "none",
+        "specifyBody": "json",
+        "jsonBody": "{\"prompt\":\"STRATEGY_PROMPT_REDACTED\"}"
+      },
+      "id": "call-claude-synth",
+      "name": "Call Claude Synthesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3792,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "parse-final",
+      "name": "Parse Final Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4016,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "format-signal",
+      "name": "Format Signal Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4240,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconst signal = d.signal || {};\n\nif (signal.action !== 'TRADE') {\n  return [{ json: { ...d, skipped: true } }];\n}\n\nconst now = new Date();\nconst pad = n => String(n).padStart(2,'0');\nconst tradeName = `${d.symbol}-${now.getUTCFullYear()}${pad(now.getUTCMonth()+1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}`;\nconst stopLossPct = Math.abs((signal.stopLoss - signal.entry) / signal.entry) * 100;\n\nconst body = {\n  parent: { database_id: '' + $env.NOTION_TRADES_DB_ID + '' },\n  properties: {\n    'Trade Name': { title: [{ text: { content: tradeName } }] },\n    'Symbol': { rich_text: [{ text: { content: d.symbol } }] },\n    'Side': { select: { name: signal.direction === 'LONG' ? 'LONG' : 'SHORT' } },\n    'Status': { select: { name: 'OPEN' } },\n    'Entry': { number: signal.entry },\n    'Stop Loss': { number: signal.stopLoss },\n    'Take Profit': { number: signal.tp1 },\n    'Risk Pct': { number: signal.positionSizePct },\n    'Stop Loss Pct': { number: stopLossPct },\n    'Confidence': { number: signal.confluence },\n    'Open Time': { date: { start: now.toISOString() } },\n    'Notes': { rich_text: [{ text: { content: `action=${signal.action}|rr=${signal.riskReward}` } }] }\n  }\n};\n\nconst page = await $helpers.httpRequest({\n  method: 'POST',\n  url: 'https://api.notion.com/v1/pages',\n  headers: {\n    'Authorization': 'Bearer ' + $env.NOTION_TOKEN + '',\n    'Notion-Version': '2022-06-28',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify(body)\n});\n\nreturn [{ json: { ...d, notion_page_id: page.id, trade_name: tradeName } }];\n"
+      },
+      "id": "log-trade",
+      "name": "Log Paper Trade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4464,
+        416
+      ],
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Format Signal Report').item.json.chatId }}",
+        "text": "={{ $('Format Signal Report').item.json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-signal",
+      "name": "Send Signal to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4688,
+        208
+      ],
+      "webhookId": "68fc96b7-1e95-4027-8d80-283fdea0f8fa",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { text, chatId } = $('Parse Command').first().json;\nreturn [{ json: { chatId } }];"
+      },
+      "id": "set-portfolio",
+      "name": "Set Portfolio Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nconst chatId = $('Set Portfolio Query').first().json.chatId;\n\nif (!rows || rows.length === 0 || !rows[0].json?.id) {\n  return [{ json: { chatId, message: '📭 No open trades.' } }];\n}\n\nlet totalPnl = 0;\nconst lines = rows.map(r => {\n  const t = r.json;\n  const pnl = parseFloat(t.unrealized_pnl || 0);\n  totalPnl += pnl;\n  const emoji = pnl > 0 ? '🟢' : pnl < 0 ? '🔴' : '⚪';\n  return `${emoji} *${t.symbol}* ${t.side} @ ${t.entry} | PnL: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%`;\n});\n\nconst message = [\n  '📊 *Open Positions*',\n  ...lines,\n  '',\n  `Total unrealized: ${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}%`\n].join('\\n');\n\nreturn [{ json: { chatId, message } }];"
+      },
+      "id": "format-portfolio",
+      "name": "Format Portfolio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-portfolio",
+      "name": "Send Portfolio",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1408,
+        32
+      ],
+      "webhookId": "6d843b43-9d43-4a5f-bdb2-fe2fef898948",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const { text, chatId } = $('Parse Command').first().json;\nreturn [{ json: { chatId } }];"
+      },
+      "id": "set-history",
+      "name": "Set History Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT trade_name, symbol, side, status, entry, close_price, pnl_pct, rr_achieved, open_time, close_time FROM paper_trades WHERE status = 'CLOSED' ORDER BY close_time DESC LIMIT 20",
+        "options": {},
+        "jsCode": "const body = {\n  filter: { property: 'Status', select: { equals: 'CLOSED' } },\n  sorts: [{ property: 'Close Time', direction: 'descending' }],\n  page_size: 20\n};\n\nconst res = await fetch('https://api.notion.com/v1/databases/' + $env.NOTION_TRADES_DB_ID + '/query', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer ' + $env.NOTION_TOKEN + '',\n    'Notion-Version': '2022-06-28',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify(body)\n});\n\nconst data = await res.json();\nconst pages = data.results || [];\n\nif (pages.length === 0) return [{ json: { trade_name: null } }];\n\nreturn pages.map(p => {\n  const pr = p.properties;\n  return { json: {\n    trade_name: pr['Trade Name']?.title?.[0]?.text?.content || '',\n    symbol: pr['Symbol']?.rich_text?.[0]?.text?.content || '',\n    side: pr['Side']?.select?.name || '',\n    status: pr['Status']?.select?.name || '',\n    entry: pr['Entry']?.number || 0,\n    close_price: pr['Close Price']?.number || 0,\n    pnl_pct: pr['PnL Pct']?.number || 0,\n    rr_achieved: pr['RR Achieved']?.number || 0,\n    open_time: pr['Open Time']?.date?.start || '',\n    close_time: pr['Close Time']?.date?.start || ''\n  }};\n});"
+      },
+      "id": "get-history",
+      "name": "Get History Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        1312
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nconst chatId = $('Set History Query').first().json.chatId;\n\nif (!rows || rows.length === 0 || !rows[0].json?.trade_name) {\n  return [{ json: { chatId, message: '📭 No closed trades yet.' } }];\n}\n\nlet totalPnl = 0;\nlet wins = 0;\nconst lines = rows.map(r => {\n  const t = r.json;\n  const pnl = parseFloat(t.pnl_pct || 0);\n  totalPnl += pnl;\n  if (pnl > 0) wins++;\n  const emoji = pnl > 0 ? '✅' : '❌';\n  return `${emoji} ${t.symbol} ${t.side}: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%`;\n});\n\nconst total = rows.length;\nconst winRate = total > 0 ? ((wins / total) * 100).toFixed(0) : 0;\n\nconst message = [\n  '📈 *Trade History*',\n  ...lines,\n  '',\n  `Win rate: ${winRate}% (${wins}/${total}) | Net: ${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}%`\n].join('\\n');\n\nreturn [{ json: { chatId, message } }];"
+      },
+      "id": "format-history",
+      "name": "Format History",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-history",
+      "name": "Send History",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        1568
+      ],
+      "webhookId": "869b9134-e0f5-416f-9e3a-a82f03e0f1e4",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Command').first().json.chatId }}",
+        "text": "🤖 *BTMS Command Reference*\n\n`/analyze SYMBOL` — Full multi-TF analysis + trade signal\n`/portfolio` — Open paper trades + unrealised P&L\n`/history` — Closed trade history + win rate\n`/scan` — Scan BTCUSDT for Elliott Wave + FVG setups\n`/help` — This message\n\n_Powered by Claude + Groq + Bybit_",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-help",
+      "name": "Send Help Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        1008
+      ],
+      "webhookId": "67dd76e8-fce2-496a-887e-f89b955c82f8",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.alternative.me/fng/",
+        "options": {}
+      },
+      "id": "927d9475-4662-4eb2-8657-2483af1a7042",
+      "name": "Get Fear & Greed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1424,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.coingecko.com/api/v3/news",
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "page",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "id": "928c02a3-4efc-4a91-ae13-9d34c92a7ef9",
+      "name": "Get Crypto News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1488,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.coingecko.com/api/v3/global",
+        "options": {}
+      },
+      "id": "b8f80f2c-2aa3-4bbd-af75-b745a9b84e16",
+      "name": "Get Global Market",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1424,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fearGreed = $('Get Fear & Greed').first().json?.data?.[0] || {};\nconst newsRaw = $('Get Crypto News').first().json?.data || [];\nconst news = newsRaw.slice(0, 10).map(n => ({ title: n.attributes?.title || n.title, source: n.attributes?.news_site || n.source?.title, published_at: n.attributes?.published_at }));\nconst globalMarket = $('Get Global Market').first().json?.data || {};\nconst prev = $('Parse Symbol').first().json;\n\nreturn [{ json: { ...prev, fearGreed, news, globalMarket } }];"
+      },
+      "id": "cc17f971-f6ea-461e-9af3-e0848bdab6c2",
+      "name": "Aggregate News Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, trade_name, symbol, side, entry, stop_loss, take_profit, risk_pct, confidence, open_time, notes, (entry * 0.001) AS unrealized_pnl FROM paper_trades WHERE status = 'OPEN' ORDER BY open_time DESC",
+        "options": {},
+        "jsCode": "const body = {\n  filter: { property: 'Status', select: { equals: 'OPEN' } },\n  sorts: [{ property: 'Open Time', direction: 'descending' }]\n};\n\nconst res = await fetch('https://api.notion.com/v1/databases/' + $env.NOTION_TRADES_DB_ID + '/query', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer ' + $env.NOTION_TOKEN + '',\n    'Notion-Version': '2022-06-28',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify(body)\n});\n\nconst data = await res.json();\nconst pages = data.results || [];\n\nif (pages.length === 0) return [{ json: { id: null } }];\n\nreturn pages.map(p => {\n  const pr = p.properties;\n  const entry = pr['Entry']?.number || 0;\n  return { json: {\n    id: p.id,\n    trade_name: pr['Trade Name']?.title?.[0]?.text?.content || '',\n    symbol: pr['Symbol']?.rich_text?.[0]?.text?.content || '',\n    side: pr['Side']?.select?.name || '',\n    entry,\n    stop_loss: pr['Stop Loss']?.number || 0,\n    take_profit: pr['Take Profit']?.number || 0,\n    risk_pct: pr['Risk Pct']?.number || 0,\n    confidence: pr['Confidence']?.number || 0,\n    open_time: pr['Open Time']?.date?.start || '',\n    notes: pr['Notes']?.rich_text?.[0]?.text?.content || '',\n    unrealized_pnl: 0\n  }};\n});"
+      },
+      "id": "get-portfolio",
+      "name": "Get Portfolio Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        32
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "size-router",
+      "name": "Confidence → Size Router",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4352,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "london-open-trigger",
+      "name": "London Open",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(SUM(pnl_pct), 0) AS total_pnl, COUNT(*) AS trade_count, COUNT(CASE WHEN pnl_pct > 0 THEN 1 END) AS wins FROM paper_trades WHERE status = 'CLOSED' AND close_time >= CURRENT_DATE",
+        "options": {},
+        "jsCode": "const todayStart = new Date();\ntodayStart.setUTCHours(0, 0, 0, 0);\n\nconst body = {\n  filter: {\n    and: [\n      { property: 'Status', select: { equals: 'CLOSED' } },\n      { property: 'Close Time', date: { on_or_after: todayStart.toISOString() } }\n    ]\n  }\n};\n\nconst res = await fetch('https://api.notion.com/v1/databases/' + $env.NOTION_TRADES_DB_ID + '/query', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer ' + $env.NOTION_TOKEN + '',\n    'Notion-Version': '2022-06-28',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify(body)\n});\n\nconst data = await res.json();\nconst pages = data.results || [];\n\nlet total_pnl = 0;\nlet wins = 0;\nfor (const p of pages) {\n  const pnl = p.properties['PnL Pct']?.number || 0;\n  total_pnl += pnl;\n  if (pnl > 0) wins++;\n}\n\nreturn [{ json: { total_pnl, trade_count: pages.length, wins } }];"
+      },
+      "id": "check-daily-pnl",
+      "name": "Check Daily P&L",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        1216
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) AS open_count FROM paper_trades WHERE status = 'OPEN'",
+        "options": {},
+        "jsCode": "const res = await fetch('https://api.notion.com/v1/databases/' + $env.NOTION_TRADES_DB_ID + '/query', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer ' + $env.NOTION_TOKEN + '',\n    'Notion-Version': '2022-06-28',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({ filter: { property: 'Status', select: { equals: 'OPEN' } } })\n});\n\nconst data = await res.json();\nreturn [{ json: { open_count: (data.results || []).length } }];"
+      },
+      "id": "check-open-positions",
+      "name": "Check Open Positions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        1408
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const pnlRow = $('Check Daily P&L').first().json;\nconst openRow = $('Check Open Positions').first().json;\n\nconst totalPnl = parseFloat(pnlRow.total_pnl || 0);\nconst tradeCount = parseInt(pnlRow.trade_count || 0);\nconst openCount = parseInt(openRow.open_count || 0);\n\n// Block if: daily loss > 3% OR already 3+ open positions\nconst dailyLossBreached = totalPnl < -3.0;\nconst tooManyOpen = openCount >= 3;\n\nif (dailyLossBreached || tooManyOpen) {\n  return [{ json: {\n    allowed: false,\n    reason: dailyLossBreached ? `Daily loss limit reached: ${totalPnl.toFixed(2)}%` : `Max open positions reached: ${openCount}`,\n    totalPnl, tradeCount, openCount\n  }}];\n}\n\nreturn [{ json: { allowed: true, totalPnl, tradeCount, openCount } }];"
+      },
+      "id": "session-guard",
+      "name": "Session Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];\nconst sessionGuard = $input.first().json;\n\nreturn symbols.map(symbol => ({ json: { symbol, sessionGuard } }));"
+      },
+      "id": "set-symbol-sched",
+      "name": "Set Symbol (Scheduled)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 16 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "london-close-trigger",
+      "name": "London Close",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        1712
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst https = require('https');\nconst API_KEY = '' + $env.BYBIT_API_KEY + '';\nconst API_SECRET = '' + $env.BYBIT_API_SECRET + '';\nconst BASE_URL = 'https://api-demo.bybit.com';\nconst RECV_WINDOW = '5000';\n\nfunction sign(payload) {\n  const ts = Date.now().toString();\n  const signStr = ts + API_KEY + RECV_WINDOW + payload;\n  const sig = crypto.createHmac('sha256', API_SECRET).update(signStr).digest('hex');\n  return { ts, sig };\n}\n\nfunction httpsRequest(method, url, headers, body) {\n  return new Promise((resolve, reject) => {\n    const urlObj = new URL(url);\n    const options = { hostname: urlObj.hostname, path: urlObj.pathname + urlObj.search, method, headers };\n    const req = https.request(options, (res) => {\n      let data = '';\n      res.on('data', d => data += d);\n      res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(e); } });\n    });\n    req.on('error', reject);\n    if (body) req.write(body);\n    req.end();\n  });\n}\n\nasync function get(path, query = '') {\n  const { ts, sig } = sign(query);\n  const url = query ? `${BASE_URL}${path}?${query}` : `${BASE_URL}${path}`;\n  return httpsRequest('GET', url, {\n    'X-BAPI-API-KEY': API_KEY, 'X-BAPI-TIMESTAMP': ts,\n    'X-BAPI-SIGN': sig, 'X-BAPI-RECV-WINDOW': RECV_WINDOW, 'X-BAPI-SIGN-TYPE': '2'\n  });\n}\n\nasync function post(path, params) {\n  const body = JSON.stringify(params);\n  const { ts, sig } = sign(body);\n  return httpsRequest('POST', `${BASE_URL}${path}`, {\n    'Content-Type': 'application/json', 'X-BAPI-API-KEY': API_KEY,\n    'X-BAPI-TIMESTAMP': ts, 'X-BAPI-SIGN': sig,\n    'X-BAPI-RECV-WINDOW': RECV_WINDOW, 'X-BAPI-SIGN-TYPE': '2'\n  }, body);\n}\n\nconst posRes = await get('/v5/position/list', 'category=linear&settleCoin=USDT');\nconst positions = posRes?.result?.list?.filter(p => parseFloat(p.size) > 0) || [];\n\nconst closed = [];\nfor (const pos of positions) {\n  const closeSide = pos.side === 'Buy' ? 'Sell' : 'Buy';\n  await post('/v5/order/cancel-all', { category: 'linear', symbol: pos.symbol });\n  const closeRes = await post('/v5/order/create', {\n    category: 'linear', symbol: pos.symbol, side: closeSide,\n    orderType: 'Market', qty: pos.size, timeInForce: 'GTC',\n    reduceOnly: true, positionIdx: 0\n  });\n  closed.push({\n    symbol: pos.symbol, side: pos.side, size: pos.size,\n    entryPrice: parseFloat(pos.avgPrice),\n    unrealizedPnl: parseFloat(pos.unrealisedPnl),\n    closeOrderId: closeRes?.result?.orderId\n  });\n}\n\nreturn [{ json: { closed, count: closed.length, sessionDate: new Date().toISOString().slice(0,10) } }];"
+      },
+      "id": "force-close-positions",
+      "name": "Force Close Positions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        1712
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE paper_trades SET status = 'CLOSED', close_time = NOW(), close_price = entry, pnl_pct = 0, rr_achieved = 0, notes = COALESCE(notes, '') || ' | closed: session_end' WHERE status = 'OPEN' RETURNING trade_name, symbol, side, entry, pnl_pct",
+        "options": {},
+        "jsCode": "const headers = {\n  'Authorization': 'Bearer ' + $env.NOTION_TOKEN + '',\n  'Notion-Version': '2022-06-28',\n  'Content-Type': 'application/json'\n};\n\nconst queryRes = await fetch('https://api.notion.com/v1/databases/' + $env.NOTION_TRADES_DB_ID + '/query', {\n  method: 'POST',\n  headers,\n  body: JSON.stringify({ filter: { property: 'Status', select: { equals: 'OPEN' } } })\n});\n\nconst queryData = await queryRes.json();\nconst pages = queryData.results || [];\n\nif (pages.length === 0) {\n  return [{ json: { trade_name: null, symbol: null, side: null, entry: 0, pnl_pct: 0 } }];\n}\n\nconst now = new Date().toISOString();\nconst results = [];\n\nfor (const p of pages) {\n  const pr = p.properties;\n  const entry = pr['Entry']?.number || 0;\n  const existingNotes = pr['Notes']?.rich_text?.[0]?.text?.content || '';\n\n  await fetch(`https://api.notion.com/v1/pages/${p.id}`, {\n    method: 'PATCH',\n    headers,\n    body: JSON.stringify({\n      properties: {\n        'Status': { select: { name: 'CLOSED' } },\n        'Close Time': { date: { start: now } },\n        'Close Price': { number: entry },\n        'PnL Pct': { number: 0 },\n        'RR Achieved': { number: 0 },\n        'Notes': { rich_text: [{ text: { content: existingNotes + ' | closed: session_end' } }] }\n      }\n    })\n  });\n\n  results.push({ json: {\n    trade_name: pr['Trade Name']?.title?.[0]?.text?.content || '',\n    symbol: pr['Symbol']?.rich_text?.[0]?.text?.content || '',\n    side: pr['Side']?.select?.name || '',\n    entry,\n    pnl_pct: 0\n  }});\n}\n\nreturn results;"
+      },
+      "id": "close-db-trades",
+      "name": "Close DB Trades",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        1712
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const dbTrades = $input.all();\nconst phtNow = new Date(Date.now() + 8 * 3600 * 1000);\nconst dateStr = phtNow.toISOString().slice(0, 10);\n\nlet totalPnl = 0;\nlet wins = 0;\nconst lines = [];\n\nfor (const t of dbTrades) {\n  const pnl = parseFloat(t.json.pnl_pct || 0);\n  totalPnl += pnl;\n  if (pnl > 0) wins++;\n  const emoji = pnl > 0 ? '✅' : pnl < 0 ? '❌' : '⏹';\n  lines.push(`${emoji} ${t.json.symbol} ${t.json.side}: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%`);\n}\n\nconst total = dbTrades.length;\nconst text = [\n  `📊 *London Session Wrap — ${dateStr}*`,\n  lines.length > 0 ? lines.join('\\n') : 'No trades today.',\n  '',\n  `Net: ${totalPnl >= 0 ? '+' : ''}${totalPnl.toFixed(2)}% | ${wins}W / ${total - wins}L`,\n].join('\\n');\n\nreturn [{ json: { text } }];"
+      },
+      "id": "format-session-summary",
+      "name": "Format Session Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        1712
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.BTMS_TELEGRAM_CHAT_ID ?? '' }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-session-summary",
+      "name": "Send Session Summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1152,
+        1712
+      ],
+      "webhookId": "edf53a95-e69a-46ac-b732-3152d9e5c9e2",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "BTMS Telegram Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// strategy logic redacted from this public copy.\n// original performed proprietary analysis (Elliott Wave / FVG / confluence / sizing).\n// replace with your own setup detection or LLM call.\nconst input = $input.first().json;\nreturn [{ json: { ...input, _redacted: true } }];"
+      },
+      "id": "execute-trade",
+      "name": "Execute Trade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4576,
+        0
+      ]
+    },
+    {
+      "id": "75fe82aa-3c2f-4570-9c3b-a4a61a1807ca",
+      "name": "Merge News Inputs",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1648,
+        1024
+      ],
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 3
+      }
+    },
+    {
+      "id": "call-btms-scan",
+      "name": "Call BTMS Scan",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        1200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://your-n8n-host.example.com/webhook/btms-scan",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "triggered_by": "telegram",
+          "mode": "SCAN"
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Command": {
+      "main": [
+        [
+          {
+            "node": "Route Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Command": {
+      "main": [
+        [
+          {
+            "node": "Set Analyze Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Portfolio Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set History Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Help Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call BTMS Scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Analyze Query": {
+      "main": [
+        [
+          {
+            "node": "Extract Symbol",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Symbol": {
+      "main": [
+        [
+          {
+            "node": "Fetch Bybit Data & Compute Indicators",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Parse Symbol",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Symbol",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Bybit Data & Compute Indicators": {
+      "main": [
+        [
+          {
+            "node": "Format Tech Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Tech Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call Claude - Tech",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude - Tech": {
+      "main": [
+        [
+          {
+            "node": "Parse Tech Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Tech Response": {
+      "main": [
+        [
+          {
+            "node": "Tag Tech Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Tech Result": {
+      "main": [
+        [
+          {
+            "node": "Merge Analyses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Symbol": {
+      "main": [
+        [
+          {
+            "node": "Get Fear & Greed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Crypto News",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Global Market",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Crypto News",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Global Market",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate News Data": {
+      "main": [
+        [
+          {
+            "node": "Format Fund Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Fund Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call Claude - Fund",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude - Fund": {
+      "main": [
+        [
+          {
+            "node": "Parse Fund Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Fund Response": {
+      "main": [
+        [
+          {
+            "node": "Tag Fund Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Analyses": {
+      "main": [
+        [
+          {
+            "node": "Build Risk Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Risk Query": {
+      "main": [
+        [
+          {
+            "node": "Call Claude - Risk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude - Risk": {
+      "main": [
+        [
+          {
+            "node": "Parse Risk Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Risk Response": {
+      "main": [
+        [
+          {
+            "node": "Build Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Call Claude Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Claude Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Parse Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Final Output": {
+      "main": [
+        [
+          {
+            "node": "Format Signal Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Signal Report": {
+      "main": [
+        [
+          {
+            "node": "Confidence → Size Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence → Size Router": {
+      "main": [
+        [
+          {
+            "node": "Log Paper Trade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Paper Trade": {
+      "main": [
+        [
+          {
+            "node": "Execute Trade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Trade": {
+      "main": [
+        [
+          {
+            "node": "Send Signal to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Portfolio Query": {
+      "main": [
+        [
+          {
+            "node": "Get Portfolio Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Portfolio Data": {
+      "main": [
+        [
+          {
+            "node": "Format Portfolio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Portfolio": {
+      "main": [
+        [
+          {
+            "node": "Send Portfolio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set History Query": {
+      "main": [
+        [
+          {
+            "node": "Get History Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get History Data": {
+      "main": [
+        [
+          {
+            "node": "Format History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format History": {
+      "main": [
+        [
+          {
+            "node": "Send History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "London Open": {
+      "main": [
+        [
+          {
+            "node": "Check Daily P&L",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Open Positions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Daily P&L": {
+      "main": [
+        [
+          {
+            "node": "Session Guard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Open Positions": {
+      "main": [
+        [
+          {
+            "node": "Session Guard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Session Guard": {
+      "main": [
+        [
+          {
+            "node": "Set Symbol (Scheduled)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Symbol (Scheduled)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Bybit Data & Compute Indicators",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "London Close": {
+      "main": [
+        [
+          {
+            "node": "Force Close Positions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Force Close Positions": {
+      "main": [
+        [
+          {
+            "node": "Close DB Trades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close DB Trades": {
+      "main": [
+        [
+          {
+            "node": "Format Session Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Session Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Session Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Fund Result": {
+      "main": [
+        [
+          {
+            "node": "Merge Analyses",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Fear & Greed": {
+      "main": [
+        [
+          {
+            "node": "Merge News Inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge News Inputs": {
+      "main": [
+        [
+          {
+            "node": "Aggregate News Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Crypto News": {
+      "main": [
+        [
+          {
+            "node": "Merge News Inputs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Global Market": {
+      "main": [
+        [
+          {
+            "node": "Merge News Inputs",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "binaryMode": "separate"
+  },
+  "tags": []
+}

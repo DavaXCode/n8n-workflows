@@ -1,0 +1,253 @@
+{
+  "name": "RAG — Ingestion",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rag/ingest",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "db10480b-1eed-49c6-8ffe-ea69b54d0d99",
+      "name": "Ingest Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "cb9464f1-3c1c-4757-9eac-ac718e33b50d"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.file_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "11c09ac8-4c24-4c31-b5ee-039131bceb07",
+      "name": "Download File1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "167655f5-81d5-471b-9f64-61a296b431e3",
+      "name": "Extract Text1",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.text || $json.content || '';\nconst webhookData = $('Ingest Webhook1').first().json.body;\nconst sourceName = webhookData.source_name || 'unknown';\nconst sourceUrl = webhookData.source_url || '';\n\nconst CHUNK_SIZE = 2000;\nconst OVERLAP = 200;\nconst MAX_CHUNK = 1600;\n\nif (!text || text.trim().length === 0) {\n  throw new Error('No text could be extracted from the file');\n}\n\nconst chunks = [];\nlet start = 0;\n\nwhile (start < text.length) {\n  let end = Math.min(start + CHUNK_SIZE, text.length);\n  let chunk = text.slice(start, end).trim();\n  if (chunk.length > MAX_CHUNK) chunk = chunk.slice(0, MAX_CHUNK);\n  if (chunk.length > 20) {\n    chunks.push({ json: { content: chunk, chunk_index: chunks.length, source_name: sourceName, source_url: sourceUrl } });\n  }\n  if (start + CHUNK_SIZE >= text.length) break;\n  start += CHUNK_SIZE - OVERLAP;\n}\n\nif (chunks.length === 0) throw new Error('Document produced no chunks');\nreturn chunks;"
+      },
+      "id": "7de3a6a5-ecb5-4a36-9eb2-007e8698f1ca",
+      "name": "Chunk Text1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.jina.ai/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'jina-embeddings-v3', input: [$json.content], dimensions: 1024}) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 500
+            }
+          }
+        }
+      },
+      "id": "95701ea3-32a5-47e0-b244-e9ac2cfda9a2",
+      "name": "Jina Embed1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allChunks = $('Chunk Text1').all();\nconst jinaResponses = $input.all();\nconst esc = s => String(s || '').replace(/'/g, \"''\");\n\nreturn jinaResponses.map((resp, i) => {\n  const chunkData = allChunks[i].json;\n  const embedding = resp.json.data[0].embedding;\n  const embeddingStr = JSON.stringify(embedding);\n  const sql = `INSERT INTO documents (content, embedding, source_name, source_url, chunk_index) VALUES ('${esc(chunkData.content)}', '${embeddingStr}'::vector, '${esc(chunkData.source_name)}', '${esc(chunkData.source_url)}', ${chunkData.chunk_index}) RETURNING id`;\n  return { json: { sql, chunk_index: chunkData.chunk_index, source_name: chunkData.source_name } };\n});"
+      },
+      "id": "00d755de-1d82-4a71-99c7-b818299c9541",
+      "name": "Prepare Insert1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.sql }}",
+        "options": {}
+      },
+      "id": "7f1a9c4a-3d25-4707-a09d-6bd31d5a7112",
+      "name": "Insert Document1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "ef23fc17-cf1e-420f-996f-5b7a954e0f33",
+      "name": "Aggregate1",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, source_name: $('Ingest Webhook1').first().json.body.source_name, chunks_ingested: $json.data.length }) }}",
+        "options": {}
+      },
+      "id": "322d2b65-28ac-4652-9c7f-85d8c3510ac6",
+      "name": "Respond1",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Ingest Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Download File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File1": {
+      "main": [
+        [
+          {
+            "node": "Extract Text1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text1": {
+      "main": [
+        [
+          {
+            "node": "Chunk Text1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Text1": {
+      "main": [
+        [
+          {
+            "node": "Jina Embed1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jina Embed1": {
+      "main": [
+        [
+          {
+            "node": "Prepare Insert1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Insert1": {
+      "main": [
+        [
+          {
+            "node": "Insert Document1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Document1": {
+      "main": [
+        [
+          {
+            "node": "Aggregate1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate1": {
+      "main": [
+        [
+          {
+            "node": "Respond1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

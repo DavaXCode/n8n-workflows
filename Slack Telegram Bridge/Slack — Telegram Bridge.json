@@ -1,0 +1,220 @@
+{
+  "name": "Slack → Telegram Bridge",
+  "description": "Slack-to-Telegram bridge: when a human replies in a thread under a #kb-support escalation, fetches the parent message, extracts the Telegram chat ID, and forwards the reply to that user via the Telegram bot.",
+  "nodes": [
+    {
+      "parameters": {
+        "trigger": [
+          "message"
+        ],
+        "channelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "#kb-support"
+        },
+        "options": {}
+      },
+      "id": "75252f30-cc88-4e29-bde4-72d28e4c373c",
+      "name": "Slack Thread Reply",
+      "type": "n8n-nodes-base.slackTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        96
+      ],
+      "webhookId": "a410df7e-8eda-4159-ae18-b527df9db388"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.thread_ts }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "leftValue": "={{ $json.thread_ts !== $json.ts }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "leftValue": "={{ $json.bot_id || \"\" }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b902ce05-b863-433f-8cbd-597b94f1e589",
+      "name": "Is Human Thread Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://slack.com/api/conversations.history",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "channel",
+              "value": "={{ $json.channel }}"
+            },
+            {
+              "name": "latest",
+              "value": "={{ $json.thread_ts }}"
+            },
+            {
+              "name": "inclusive",
+              "value": "true"
+            },
+            {
+              "name": "limit",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "083740d4-d6a2-4aa2-92f2-5950a39a3765",
+      "name": "Fetch Parent Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const parent = $json.messages?.[0]?.text || '';\nconst match = parent.match(/Telegram chat ID:\\s*`(-?\\d+)`/);\nif (!match) {\n  return [];\n}\nconst chatId = match[1];\nconst replyText = $('Slack Thread Reply').first().json.text;\nreturn [{ json: { chatId, replyText } }];"
+      },
+      "id": "06d0bc65-9554-49dc-837a-15911657caba",
+      "name": "Extract Chat ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=👤 *Support team reply:*\n{{ $json.replyText }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "920e0055-b3f6-417a-8e77-94c8898617e6",
+      "name": "Send To Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        0
+      ],
+      "webhookId": "290919a4-de75-419a-9aac-e53f690ec519"
+    },
+    {
+      "parameters": {},
+      "id": "74d45103-b633-4be6-a016-1fddb587aabb",
+      "name": "Ignore",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        448,
+        192
+      ]
+    }
+  ],
+  "connections": {
+    "Slack Thread Reply": {
+      "main": [
+        [
+          {
+            "node": "Is Human Thread Reply?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Human Thread Reply?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Parent Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignore",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Parent Message": {
+      "main": [
+        [
+          {
+            "node": "Extract Chat ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Chat ID": {
+      "main": [
+        [
+          {
+            "node": "Send To Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp"
+  },
+  "tags": []
+}

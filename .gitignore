@@ -1,0 +1,25 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+secrets.json
+
+# n8n local data (encrypted creds, sqlite, etc.)
+.n8n/
+n8n_data/
+database.sqlite
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Local scratch / archives
+.tmp_*
+Trading Bot/Trading Bot.zip
+*.zip

@@ -1,0 +1,357 @@
+{
+  "name": "RAG — Query (HTTP)",
+  "description": "Synchronous HTTP RAG query API: POST /webhook/rag-query with {query} returns JSON {answer, sources}. Embeds via Jina, pgvector cosine search, Groq Llama-3.3-70B answer. Used as a tool by the AI Support Agent.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rag-query",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1573b037-d755-43b9-80a0-372d2a460f19",
+      "name": "Query Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        192
+      ],
+      "webhookId": "7b4c1355-2304-43b4-9e75-01ab97fe2368"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.jina.ai/v1/embeddings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'jina-embeddings-v3', input: [$('Query Webhook').first().json.body.query], dimensions: 1024}) }}",
+        "options": {}
+      },
+      "id": "fde4bd9e-501a-4d2f-abb5-f91644f103aa",
+      "name": "Jina Embed Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const embedding = $json.data[0].embedding;\nconst embeddingStr = JSON.stringify(embedding);\nconst sql = `SELECT content, source_name, source_url, 1 - (embedding <=> '${embeddingStr}'::vector) AS similarity FROM documents ORDER BY embedding <=> '${embeddingStr}'::vector LIMIT 5`;\nreturn [{ json: { sql } }];"
+      },
+      "id": "26f8990b-77fa-4599-a7aa-223fedd8e2b5",
+      "name": "Prepare Vector SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.sql }}",
+        "options": {}
+      },
+      "id": "c6703da7-e893-4b68-b907-4a22ccb91e6f",
+      "name": "Vector Search",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        672,
+        192
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all();\nconst webhookBody = $('Query Webhook').first().json.body;\nconst valid = results.map(r => r.json).filter(r => r && r.content);\nreturn [{ json: {\n  results: valid,\n  has_results: valid.length > 0,\n  result_count: valid.length,\n  user_question: webhookBody.query\n}}];"
+      },
+      "id": "16abd5be-4747-4a83-8128-25d7f21b98a7",
+      "name": "Collect Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_results }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "154875e0-8336-46c6-831b-99fca28d94c1",
+      "name": "Has Results?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\nconst context = data.results\n  .map((r, i) => `[${i+1}] ${r.content}\\nSource: ${r.source_name || 'unknown'}`)\n  .join('\\n\\n---\\n\\n');\nconst sources = [...new Set(data.results.map(r => r.source_name).filter(Boolean))];\n\nreturn [{ json: {\n  context,\n  sources: sources.join(', '),\n  user_question: data.user_question\n}}];"
+      },
+      "id": "4485c473-d05e-4176-bf1b-09e667336efd",
+      "name": "Build Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'llama-3.3-70b-versatile', messages: [{role: 'system', content: 'You are a helpful internal knowledge assistant. Answer the question using ONLY the context provided below. Be concise and accurate. At the end of your answer, list the sources under a \"Sources:\" heading.\\n\\nContext:\\n' + $json.context}, {role: 'user', content: $json.user_question}], max_tokens: 800, temperature: 0.3}) }}",
+        "options": {}
+      },
+      "id": "1dc911be-2a34-44f9-a8f0-dee1a81e6cac",
+      "name": "Groq LLM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1568,
+        96
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.choices !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "id": "7b46367c-4e88-436f-a1ba-e01c3d914ce8"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3e6f9940-cba0-4d8a-95bc-089ef60ccca9",
+      "name": "Groq OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1792,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"answer\": $json.choices[0].message.content, \"sources\": $('Build Context').item.json.sources } }}",
+        "options": {}
+      },
+      "id": "6748ac83-80f3-4eca-a134-e3f87113b7a7",
+      "name": "Respond Answer",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2016,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"answer\": \"Sorry, I ran into an error generating an answer. Please try again.\", \"sources\": \"\", \"error\": true } }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "b00bf4df-f9a1-4d5d-a05c-fb9a2ba68e24",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2016,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"answer\": \"No relevant information found in the knowledge base.\", \"sources\": \"\" } }}",
+        "options": {}
+      },
+      "id": "2ca1a2a5-686c-4341-a7bd-9e0371995bcf",
+      "name": "Respond No Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1344,
+        288
+      ]
+    }
+  ],
+  "connections": {
+    "Query Webhook": {
+      "main": [
+        [
+          {
+            "node": "Jina Embed Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jina Embed Query": {
+      "main": [
+        [
+          {
+            "node": "Prepare Vector SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Vector SQL": {
+      "main": [
+        [
+          {
+            "node": "Vector Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Search": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Results": {
+      "main": [
+        [
+          {
+            "node": "Has Results?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Results?": {
+      "main": [
+        [
+          {
+            "node": "Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond No Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Context": {
+      "main": [
+        [
+          {
+            "node": "Groq LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq LLM": {
+      "main": [
+        [
+          {
+            "node": "Groq OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq OK?": {
+      "main": [
+        [
+          {
+            "node": "Respond Answer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp"
+  },
+  "tags": []
+}
